@@ -84,6 +84,17 @@ export async function runMigrations(): Promise<void> {
   `);
 
   await pool.query(`
+    CREATE TABLE IF NOT EXISTS mnemonics (
+      id            SERIAL PRIMARY KEY,
+      text_id       TEXT NOT NULL UNIQUE,
+      content       TEXT NOT NULL,
+      mnemonic_type TEXT NOT NULL,
+      status        TEXT NOT NULL DEFAULT 'pending',
+      error_message TEXT,
+      created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
     CREATE TABLE IF NOT EXISTS acronyms (
       id            SERIAL PRIMARY KEY,
       text_id       TEXT NOT NULL UNIQUE,
