@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/product-spec/"
+title = "Memorizer — Product Spec & User Flow"
+version = "1.0.0"
+id = "artifacts/product-spec"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/product-spec/" ]
+localPort = 18947
+
+[services.development]
+run = "pnpm --filter @workspace/product-spec run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/product-spec", "run", "build" ]
+publicDir = "artifacts/product-spec/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "18947"
+BASE_PATH = "/product-spec/"

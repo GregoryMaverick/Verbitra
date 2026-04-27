@@ -1,0 +1,4 @@
+export const SUBSCRIPTIONS_ENABLED = false;
+
+export const AUTH_GATE_SESSION_THRESHOLD = 14;
+export const AUTH_GATE_HARD_REQUIRED_THRESHOLD = 20;
