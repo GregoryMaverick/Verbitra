@@ -1,0 +1,90 @@
+[
+	{
+		"id": "pd01a2b3-c4d5-e6f7-a8b9-c0d1e2f3a4b5",
+		"position": 1,
+		"filepath": "src/pages/slides/Slide01Title.tsx",
+		"title": "Title — Verbitra",
+		"description": "Hero title slide with brand identity, tagline, and core value propositions.",
+		"speakerNotes": ""
+	},
+	{
+		"id": "pd02a2b3-c4d5-e6f7-a8b9-c0d1e2f3a4b5",
+		"position": 2,
+		"filepath": "src/pages/slides/Slide02Problem.tsx",
+		"title": "The Problem — Illusion of Knowing",
+		"description": "The core problem: re-reading creates familiarity, not recall. Visual pull-quote with use case list.",
+		"speakerNotes": ""
+	},
+	{
+		"id": "pd03a2b3-c4d5-e6f7-a8b9-c0d1e2f3a4b5",
+		"position": 3,
+		"filepath": "src/pages/slides/Slide03Solution.tsx",
+		"title": "The Solution — Three-Phase Method",
+		"description": "Verbitra's core promise and Read-Scaffold-Remember methodology as a visual flow.",
+		"speakerNotes": ""
+	},
+	{
+		"id": "pd04a2b3-c4d5-e6f7-a8b9-c0d1e2f3a4b5",
+		"position": 4,
+		"filepath": "src/pages/slides/Slide04HowItWorks.tsx",
+		"title": "How It Works — Phase Detail",
+		"description": "Three-column detail of all three phases with specific feature callouts per phase.",
+		"speakerNotes": ""
+	},
+	{
+		"id": "pd05a2b3-c4d5-e6f7-a8b9-c0d1e2f3a4b5",
+		"position": 5,
+		"filepath": "src/pages/slides/Slide05WhoItsFor.tsx",
+		"title": "Who It's For — Audience Segments",
+		"description": "Four-quadrant layout showing primary audience segments with their moment of truth.",
+		"speakerNotes": ""
+	},
+	{
+		"id": "pd06a2b3-c4d5-e6f7-a8b9-c0d1e2f3a4b5",
+		"position": 6,
+		"filepath": "src/pages/slides/Slide06Market.tsx",
+		"title": "Market Opportunity — Three Tiers",
+		"description": "Qualitative market framing across three user tiers with supporting descriptors.",
+		"speakerNotes": ""
+	},
+	{
+		"id": "pd07a2b3-c4d5-e6f7-a8b9-c0d1e2f3a4b5",
+		"position": 7,
+		"filepath": "src/pages/slides/Slide07CompetitiveWhiteSpace.tsx",
+		"title": "Competitive White Space — Positioning Map",
+		"description": "2x2 positioning map showing where Verbitra fits relative to generic study tools.",
+		"speakerNotes": ""
+	},
+	{
+		"id": "pd08a2b3-c4d5-e6f7-a8b9-c0d1e2f3a4b5",
+		"position": 8,
+		"filepath": "src/pages/slides/Slide08BusinessModel.tsx",
+		"title": "Business Model — Freemium Tiers",
+		"description": "Freemium model with Free and Pro tiers plus conversion and payment rationale.",
+		"speakerNotes": ""
+	},
+	{
+		"id": "pd09a2b3-c4d5-e6f7-a8b9-c0d1e2f3a4b5",
+		"position": 9,
+		"filepath": "src/pages/slides/Slide09VisionTraction.tsx",
+		"title": "Launch Readiness — Current Build and Next Steps",
+		"description": "Current shipped features plus immediate launch steps after submission.",
+		"speakerNotes": ""
+	},
+	{
+		"id": "pd10a2b3-c4d5-e6f7-a8b9-c0d1e2f3a4b5",
+		"position": 10,
+		"filepath": "src/pages/slides/Slide10GoToMarket.tsx",
+		"title": "Go-To-Market — Launch Channels and Replit Story",
+		"description": "Pre-launch distribution plan, early validation metrics, and explicit use of Replit.",
+		"speakerNotes": ""
+	},
+	{
+		"id": "pd11a2b3-c4d5-e6f7-a8b9-c0d1e2f3a4b5",
+		"position": 11,
+		"filepath": "src/pages/slides/Slide11Closing.tsx",
+		"title": "Closing — Verbitra",
+		"description": "Mirror of title slide. App name, tagline, and call to action to bookend the deck.",
+		"speakerNotes": ""
+	}
+]

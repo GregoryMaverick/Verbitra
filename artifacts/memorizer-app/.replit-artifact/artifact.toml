@@ -1,0 +1,23 @@
+kind = "mobile"
+previewPath = "/memorizer-app/"
+title = "Memorizer — Mobile App"
+version = "1.0.0"
+id = "artifacts/memorizer-app"
+router = "expo-domain"
+
+[[integratedSkills]]
+name = "expo"
+version = "1.0.0"
+
+[[services]]
+ensurePreviewReachable = "/status"
+name = "expo"
+paths = [ "/memorizer-app/" ]
+localPort = 25824
+
+[services.development]
+run = "pnpm --filter @workspace/memorizer-app run dev"
+
+[services.env]
+PORT = "25824"
+BASE_PATH = "/memorizer-app/"

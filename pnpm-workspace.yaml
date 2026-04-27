@@ -1,5 +1,6 @@
 packages:
   - artifacts/*
+  - artifacts/optional/*
   - lib/*
 
 autoInstallPeers: false
