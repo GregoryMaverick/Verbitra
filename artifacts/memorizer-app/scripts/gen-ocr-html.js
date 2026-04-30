@@ -29,6 +29,28 @@ const html = `<!DOCTYPE html>
   <meta charset="utf-8" />
   <script>
 (function() {
+  function postMsg(msg) {
+    try {
+      if (window.ReactNativeWebView) {
+        window.ReactNativeWebView.postMessage(JSON.stringify(msg));
+      }
+    } catch (e) {}
+  }
+
+  // If anything fails before our main script runs, report it to RN.
+  window.addEventListener('error', function(ev) {
+    try {
+      postMsg({ type: 'error', message: (ev && ev.message) ? ('WebView error: ' + ev.message) : 'WebView error' });
+    } catch (e) {}
+  });
+  window.addEventListener('unhandledrejection', function(ev) {
+    try {
+      var reason = ev && ev.reason;
+      var msg = reason && reason.message ? reason.message : String(reason || 'Unhandled promise rejection');
+      postMsg({ type: 'error', message: 'WebView rejection: ' + msg });
+    } catch (e) {}
+  });
+
   var workerBlob = new Blob([${JSON.stringify(workerJs)}], { type: 'application/javascript' });
   window.__TESSERACT_WORKER_URL__ = URL.createObjectURL(workerBlob);
 })();
@@ -49,6 +71,9 @@ const html = `<!DOCTYPE html>
       postMsg({ type: 'progress', page: 0, total: images.length, status: 'init' });
       var worker = await Tesseract.createWorker('eng', 1, {
         workerPath: window.__TESSERACT_WORKER_URL__,
+        // Explicit paths are more reliable in WKWebView than defaults.
+        corePath: 'https://cdn.jsdelivr.net/npm/tesseract.js-core@7.0.0',
+        langPath: 'https://cdn.jsdelivr.net/npm/tesseract.js-core@7.0.0/lang-data',
         logger: function(m) {
           if (m.status === 'recognizing text') {
             postMsg({ type: 'progress', page: m.jobId, progress: m.progress, status: 'recognizing' });
@@ -71,7 +96,8 @@ const html = `<!DOCTYPE html>
       await worker.terminate();
       postMsg({ type: 'result', pages: allResults });
     } catch(e) {
-      postMsg({ type: 'error', message: e.message || 'OCR failed' });
+      var msg = (e && e.message) ? e.message : String(e || 'OCR failed');
+      postMsg({ type: 'error', message: msg });
     }
   };
 

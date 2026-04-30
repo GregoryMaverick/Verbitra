@@ -1,6 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
-import React, { useCallback, useRef, useState } from "react";
+import * as ImageManipulator from "expo-image-manipulator";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -14,12 +15,42 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { WebView } from "react-native-webview";
 
 import { T } from "@/constants/tokens";
 import { TESSERACT_WEBVIEW_HTML } from "@/lib/ocrWebViewHtml";
 
 const MAX_PHOTOS = 5;
+const TARGET_MAX_DIMENSION = 2000;
+
+const WebViewComponent =
+  Platform.OS === "web" ? null : (require("react-native-webview").WebView as any);
+
+declare global {
+  interface Window {
+    Tesseract?: any;
+  }
+}
+
+async function ensureTesseractLoaded(): Promise<any> {
+  if (typeof window === "undefined") return null;
+  if (window.Tesseract?.createWorker) return window.Tesseract;
+
+  const existing = document.getElementById("tesseract-umd");
+  if (!existing) {
+    await new Promise<void>((resolve, reject) => {
+      const script = document.createElement("script");
+      script.id = "tesseract-umd";
+      script.async = true;
+      script.src = "https://cdn.jsdelivr.net/npm/tesseract.js@7.0.0/dist/tesseract.min.js";
+      script.onload = () => resolve();
+      script.onerror = () => reject(new Error("Failed to load OCR engine script."));
+      document.head.appendChild(script);
+    });
+  }
+
+  if (window.Tesseract?.createWorker) return window.Tesseract;
+  throw new Error("OCR engine failed to initialise.");
+}
 
 export interface OcrWord {
   text: string;
@@ -49,12 +80,71 @@ export default function CameraOCRModal({
   onConfirm,
 }: CameraOCRModalProps) {
   const insets = useSafeAreaInsets();
-  const webViewRef = useRef<WebView>(null);
+  const webViewRef = useRef<any>(null);
   const [photos, setPhotos] = useState<CapturedPhoto[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingStatus, setProcessingStatus] = useState("");
   const webViewReadyRef = useRef(false);
   const pendingOcrRef = useRef<string[] | null>(null);
+
+  const preprocessAsset = useCallback(async (asset: ImagePicker.ImagePickerAsset) => {
+    // OCR gets dramatically worse with heavy compression, incorrect rotation,
+    // or very large images that exceed memory limits. This normalizes images.
+    const exif: any = (asset as any).exif;
+    const orientation = exif?.Orientation ?? exif?.orientation;
+    const rotate =
+      orientation === 3 ? 180 : orientation === 6 ? 90 : orientation === 8 ? 270 : 0;
+
+    const width = asset.width ?? TARGET_MAX_DIMENSION;
+    const height = asset.height ?? TARGET_MAX_DIMENSION;
+    const maxDim = Math.max(width, height);
+    const scale = maxDim > TARGET_MAX_DIMENSION ? TARGET_MAX_DIMENSION / maxDim : 1;
+
+    const actions: ImageManipulator.Action[] = [];
+    if (rotate !== 0) actions.push({ rotate });
+    if (scale !== 1) {
+      actions.push({
+        resize: {
+          width: Math.round(width * scale),
+          height: Math.round(height * scale),
+        },
+      });
+    }
+
+    if (actions.length === 0) {
+      // Still request base64 so OCR can run reliably on native + web.
+      return ImageManipulator.manipulateAsync(
+        asset.uri,
+        [],
+        { compress: 1, format: ImageManipulator.SaveFormat.JPEG, base64: true }
+      );
+    }
+
+    return ImageManipulator.manipulateAsync(asset.uri, actions, {
+      compress: 1,
+      format: ImageManipulator.SaveFormat.JPEG,
+      base64: true,
+    });
+  }, []);
+
+  const addAssetAsPhoto = useCallback(
+    async (asset: ImagePicker.ImagePickerAsset) => {
+      try {
+        const processed = await preprocessAsset(asset);
+        setPhotos((prev) => [
+          ...prev,
+          { uri: processed.uri, base64: processed.base64 ?? undefined },
+        ]);
+      } catch {
+        // Fall back to original asset if preprocessing fails.
+        setPhotos((prev) => [
+          ...prev,
+          { uri: asset.uri, base64: asset.base64 ?? undefined },
+        ]);
+      }
+    },
+    [preprocessAsset]
+  );
 
   const reset = useCallback(() => {
     setPhotos([]);
@@ -74,6 +164,26 @@ export default function CameraOCRModal({
       return;
     }
 
+    if (Platform.OS === "web") {
+      const remaining = MAX_PHOTOS - photos.length;
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: "images",
+        quality: 1,
+        base64: true,
+        allowsMultipleSelection: remaining > 1,
+        selectionLimit: remaining,
+      } as any);
+
+      if (!result.canceled && result.assets?.length) {
+        const assets = result.assets.slice(0, remaining);
+        for (const asset of assets) {
+          // eslint-disable-next-line no-await-in-loop
+          await addAssetAsPhoto(asset);
+        }
+      }
+      return;
+    }
+
     Alert.alert(
       "Add Photo",
       "Choose a source",
@@ -88,15 +198,14 @@ export default function CameraOCRModal({
             }
             const result = await ImagePicker.launchCameraAsync({
               mediaTypes: "images",
-              quality: 0.8,
+              quality: 1,
               base64: true,
+              exif: true,
+              allowsEditing: true,
             });
             if (!result.canceled && result.assets[0]) {
               const asset = result.assets[0];
-              setPhotos((prev) => [
-                ...prev,
-                { uri: asset.uri, base64: asset.base64 ?? undefined },
-              ]);
+              await addAssetAsPhoto(asset);
             }
           },
         },
@@ -110,15 +219,14 @@ export default function CameraOCRModal({
             }
             const result = await ImagePicker.launchImageLibraryAsync({
               mediaTypes: "images",
-              quality: 0.8,
+              quality: 1,
               base64: true,
+              exif: true,
+              allowsEditing: true,
             });
             if (!result.canceled && result.assets[0]) {
               const asset = result.assets[0];
-              setPhotos((prev) => [
-                ...prev,
-                { uri: asset.uri, base64: asset.base64 ?? undefined },
-              ]);
+              await addAssetAsPhoto(asset);
             }
           },
         },
@@ -126,7 +234,7 @@ export default function CameraOCRModal({
       ],
       { cancelable: true }
     );
-  }, [photos.length]);
+  }, [photos.length, addAssetAsPhoto]);
 
   const removePhoto = useCallback((index: number) => {
     setPhotos((prev) => prev.filter((_, i) => i !== index));
@@ -150,7 +258,7 @@ export default function CameraOCRModal({
     });
   }, []);
 
-  const runOcr = useCallback(() => {
+  const runOcr = useCallback(async () => {
     if (photos.length === 0 || isProcessing) return;
 
     const base64Images = photos.map((p) => {
@@ -161,6 +269,57 @@ export default function CameraOCRModal({
     setIsProcessing(true);
     setProcessingStatus("Initialising OCR engine…");
 
+    if (Platform.OS === "web") {
+      try {
+        const Tesseract = await ensureTesseractLoaded();
+        const worker = await Tesseract.createWorker("eng", 1, {
+          workerPath: "https://cdn.jsdelivr.net/npm/tesseract.js@7.0.0/dist/worker.min.js",
+          corePath: "https://cdn.jsdelivr.net/npm/tesseract.js-core@7.0.0",
+          langPath: "https://cdn.jsdelivr.net/npm/tesseract.js-core@7.0.0/lang-data",
+          logger: (m: any) => {
+            if (m?.status === "recognizing text") {
+              setProcessingStatus(
+                `Processing photo… ${Math.round((m.progress ?? 0) * 100)}%`
+              );
+            }
+          },
+        });
+
+        const pages: OcrPageResult[] = [];
+        for (let i = 0; i < base64Images.length; i++) {
+          setProcessingStatus(`Processing photo ${i + 1} of ${base64Images.length}…`);
+          // eslint-disable-next-line no-await-in-loop
+          const result = await worker.recognize(base64Images[i]);
+          const data: any = (result as any)?.data;
+          const rawWords = Array.isArray(data?.words) ? data.words : [];
+          const rawText = typeof data?.text === "string" ? data.text : "";
+          pages.push({
+            rawText,
+            words: rawWords.map((w: any) => ({
+              text: String(w.text ?? ""),
+              confidence: Number(w.confidence ?? 0),
+            })),
+          });
+        }
+
+        await worker.terminate();
+
+        const allWords: OcrWord[] = [];
+        const textParts: string[] = [];
+        for (const page of pages) {
+          allWords.push(...page.words);
+          textParts.push(page.rawText.trim());
+        }
+        const stitchedText = textParts.join("\n---\n");
+        reset();
+        onConfirm(stitchedText, allWords);
+      } catch (e: any) {
+        setIsProcessing(false);
+        Alert.alert("OCR Error", e?.message || "Could not process the images. Please try again.");
+      }
+      return;
+    }
+
     if (webViewReadyRef.current) {
       const script = `(function() { window.runOCR(${JSON.stringify(base64Images)}); })(); true;`;
       webViewRef.current?.injectJavaScript(script);
@@ -169,9 +328,31 @@ export default function CameraOCRModal({
     }
   }, [photos, isProcessing]);
 
+  useEffect(() => {
+    if (!isProcessing) return;
+    if (Platform.OS === "web") return;
+    // If the WebView never boots (e.g. JS error), don't spin forever.
+    const t = setTimeout(() => {
+      if (!webViewReadyRef.current) {
+        setIsProcessing(false);
+        setProcessingStatus("");
+        pendingOcrRef.current = null;
+        Alert.alert(
+          "OCR didn't start",
+          "The OCR engine didn't finish loading. Please try again. If this keeps happening, restart the app."
+        );
+      }
+    }, 12000);
+    return () => clearTimeout(t);
+  }, [isProcessing]);
+
   const handleWebViewMessage = useCallback(
     (event: { nativeEvent: { data: string } }) => {
       try {
+        // Helps debug issues where the WebView can't start Tesseract.
+        // This shows up in Metro logs / device logs.
+        // eslint-disable-next-line no-console
+        console.log("[OCR WebView message]", event.nativeEvent.data);
         const msg = JSON.parse(event.nativeEvent.data);
 
         if (msg.type === "ready") {
@@ -206,9 +387,15 @@ export default function CameraOCRModal({
           onConfirm(stitchedText, allWords);
         } else if (msg.type === "error") {
           setIsProcessing(false);
-          Alert.alert("OCR Error", msg.message || "Could not process the images. Please try again.");
+          const details =
+            typeof msg.message === "string" && msg.message.trim().length > 0
+              ? msg.message
+              : JSON.stringify(msg);
+          Alert.alert("OCR Error", details || "Could not process the images. Please try again.");
         }
       } catch {
+        // eslint-disable-next-line no-console
+        console.log("[OCR WebView message parse error]", event.nativeEvent.data);
       }
     },
     [reset, onConfirm]
@@ -323,17 +510,19 @@ export default function CameraOCRModal({
 
         {/* Hidden WebView for Tesseract.js */}
         <View style={styles.hiddenWebView}>
-          <WebView
-            ref={webViewRef}
-            source={{ html: TESSERACT_WEBVIEW_HTML }}
-            onMessage={handleWebViewMessage}
-            javaScriptEnabled
-            originWhitelist={["about:", "blob:"]}
-            onError={() => {
-              setIsProcessing(false);
-              Alert.alert("Error", "Failed to load OCR engine.");
-            }}
-          />
+          {WebViewComponent ? (
+            <WebViewComponent
+              ref={webViewRef}
+              source={{ html: TESSERACT_WEBVIEW_HTML }}
+              onMessage={handleWebViewMessage}
+              javaScriptEnabled
+              originWhitelist={["about:", "blob:"]}
+              onError={() => {
+                setIsProcessing(false);
+                Alert.alert("Error", "Failed to load OCR engine.");
+              }}
+            />
+          ) : null}
         </View>
       </View>
     </Modal>

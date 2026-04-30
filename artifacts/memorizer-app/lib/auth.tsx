@@ -1,12 +1,30 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
-import * as WebBrowser from "expo-web-browser";
-import * as SecureStore from "expo-secure-store";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+// React auth context for the mobile app.
+//
+// Why this file exists:
+// Most screens (and the AppContext for syncing) want a one-stop hook to ask
+// "is the user signed in?" and "give me a fresh access token to call the API".
+// Rather than letting components import `supabase` directly and re-implement
+// session tracking each time, we expose:
+//
+//   const { user, isLoading, isAuthenticated, login, signUp, logout, getValidToken } = useAuth();
+//
+// The `user` object's shape comes from the API (`/api/auth/user`), not from
+// Supabase directly — that's because every other table in this app stores
+// rows under a *local* user UUID (`users.id` in our Postgres) which is a
+// different value from Supabase's `auth.users.id`. The API handles linking
+// the two; the mobile app just consumes whatever the API returns.
 
-WebBrowser.maybeCompleteAuthSession();
-
-const AUTH_TOKEN_KEY = "auth_session_token";
-const APP_REDIRECT = "verbitra://auth-callback";
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+import type { Session } from "@supabase/supabase-js";
+import { supabase } from "./supabase";
 
 export interface AuthUser {
   id: string;
@@ -20,8 +38,24 @@ interface AuthContextValue {
   user: AuthUser | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  login: () => Promise<void>;
+  /**
+   * Sign in with email + password. Throws on failure so screens can show the
+   * error message inline. Resolves once Supabase has returned a session.
+   */
+  login: (email: string, password: string) => Promise<void>;
+  /**
+   * Create a new email + password account. Depending on Supabase's "Confirm
+   * email" setting, the user may need to verify before a session is issued —
+   * in that case `data.session` from Supabase is null and we leave the app
+   * unauthenticated.
+   */
+  signUp: (email: string, password: string) => Promise<{ needsEmailConfirm: boolean }>;
   logout: () => Promise<void>;
+  /**
+   * Returns the current Supabase access token (a JWT) or null if there is no
+   * session. supabase-js automatically refreshes the token if it is close to
+   * expiring, so callers don't need to worry about expiry themselves.
+   */
   getValidToken: () => Promise<string | null>;
 }
 
@@ -30,53 +64,43 @@ const AuthContext = createContext<AuthContextValue>({
   isLoading: true,
   isAuthenticated: false,
   login: async () => {},
+  signUp: async () => ({ needsEmailConfirm: false }),
   logout: async () => {},
   getValidToken: async () => null,
 });
 
 function getApiBaseUrl(): string {
-  // EXPO_PUBLIC_API_BASE_URL may include a trailing "/api" path — strip it
-  // because the calls below already include /api/* in the path.
+  // EXPO_PUBLIC_API_BASE_URL conventionally ends with "/api" (see README).
+  // We strip any trailing /api here because we explicitly write `/api/...` in
+  // the fetch URLs below — keeping both forms makes the helper robust to
+  // accidentally-doubled prefixes when EAS configs change.
   const apiUrl = process.env.EXPO_PUBLIC_API_BASE_URL;
   if (apiUrl) return apiUrl.replace(/\/api\/?$/, "");
   console.error(
     "[Auth] EXPO_PUBLIC_API_BASE_URL is not set. " +
-      "Add it to .env.local for local dev, or to EAS secrets for production builds.",
+      "Add it to .env.local for local dev, or to EAS env vars for production builds.",
   );
   return "";
 }
 
-async function secureGet(key: string): Promise<string | null> {
-  try {
-    return await SecureStore.getItemAsync(key);
-  } catch {
-    try {
-      return await AsyncStorage.getItem(key);
-    } catch {
-      return null;
-    }
-  }
-}
+/**
+ * Fetch the local-DB user row that corresponds to a Supabase access token.
+ * Returns null if the API rejects the token or if the network is offline —
+ * callers treat that the same as "signed out".
+ */
+async function fetchLocalUser(accessToken: string): Promise<AuthUser | null> {
+  const apiBase = getApiBaseUrl();
+  if (!apiBase) return null;
 
-async function secureSet(key: string, value: string): Promise<void> {
   try {
-    await SecureStore.setItemAsync(key, value);
+    const res = await fetch(`${apiBase}/api/auth/user`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { user?: AuthUser | null };
+    return data.user ?? null;
   } catch {
-    try {
-      await AsyncStorage.setItem(key, value);
-    } catch {
-    }
-  }
-}
-
-async function secureDelete(key: string): Promise<void> {
-  try {
-    await SecureStore.deleteItemAsync(key);
-  } catch {
-  }
-  try {
-    await AsyncStorage.removeItem(key);
-  } catch {
+    return null;
   }
 }
 
@@ -84,102 +108,81 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const fetchUser = useCallback(async () => {
-    try {
-      const token = await secureGet(AUTH_TOKEN_KEY);
-      if (!token) {
-        setUser(null);
-        setIsLoading(false);
-        return;
-      }
+  // We keep a ref so the onAuthStateChange callback can compare the new
+  // access token with the previous one and avoid re-fetching the user when
+  // only the refresh-token changed (which Supabase fires every hour).
+  const lastTokenRef = useRef<string | null>(null);
 
-      const apiBase = getApiBaseUrl();
-      const res = await fetch(`${apiBase}/api/auth/user`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json();
-
-      if (data.user) {
-        setUser(data.user);
-      } else {
-        await secureDelete(AUTH_TOKEN_KEY);
-        setUser(null);
-      }
-    } catch {
+  const refreshUserFromToken = useCallback(async (accessToken: string | null) => {
+    if (!accessToken) {
       setUser(null);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchUser();
-  }, [fetchUser]);
-
-  const getValidToken = useCallback(async (): Promise<string | null> => {
-    return secureGet(AUTH_TOKEN_KEY);
-  }, []);
-
-  const login = useCallback(async () => {
-    const apiBase = getApiBaseUrl();
-    if (!apiBase) {
-      console.error("API base URL is not configured.");
+      lastTokenRef.current = null;
       return;
     }
-
-    const startUrl = `${apiBase}/api/mobile-auth/start?app_redirect=${encodeURIComponent(APP_REDIRECT)}`;
-
-    try {
-      const result = await WebBrowser.openAuthSessionAsync(startUrl, APP_REDIRECT);
-      if (result.type !== "success" || !result.url) return;
-
-      const queryStart = result.url.indexOf("?");
-      const params = new URLSearchParams(
-        queryStart >= 0 ? result.url.slice(queryStart + 1) : "",
-      );
-      const transfer = params.get("transfer");
-      if (!transfer) {
-        console.error("No transfer code in callback URL");
-        return;
-      }
-
-      const redeemRes = await fetch(`${apiBase}/api/mobile-auth/redeem-transfer`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ transfer }),
-      });
-
-      if (!redeemRes.ok) {
-        console.error("Transfer redeem failed:", redeemRes.status);
-        return;
-      }
-
-      const data = await redeemRes.json();
-      if (data.token) {
-        await secureSet(AUTH_TOKEN_KEY, data.token);
-        setIsLoading(true);
-        await fetchUser();
-      }
-    } catch (err) {
-      console.error("Login error:", err);
+    if (lastTokenRef.current === accessToken && user) {
+      // Same token, same user — nothing to do.
+      return;
     }
-  }, [fetchUser]);
+    lastTokenRef.current = accessToken;
+    const localUser = await fetchLocalUser(accessToken);
+    setUser(localUser);
+  }, [user]);
+
+  useEffect(() => {
+    // On mount, hydrate from whatever session AsyncStorage already has.
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase.auth.getSession();
+      if (cancelled) return;
+      await refreshUserFromToken(data.session?.access_token ?? null);
+      setIsLoading(false);
+    })();
+
+    // Subscribe to future session changes (sign-in, sign-out, token refresh).
+    // This is the single source of truth — anywhere we want to react to auth
+    // state, we go through this listener instead of polling.
+    const { data: sub } = supabase.auth.onAuthStateChange(
+      (_event: string, session: Session | null) => {
+        void refreshUserFromToken(session?.access_token ?? null);
+      },
+    );
+
+    return () => {
+      cancelled = true;
+      sub.subscription.unsubscribe();
+    };
+  }, [refreshUserFromToken]);
+
+  const getValidToken = useCallback(async (): Promise<string | null> => {
+    // `getSession` is cheap when the in-memory session is still valid, and
+    // triggers a refresh under the hood when the access token is close to
+    // expiry. That's exactly the behaviour API callers want.
+    const { data } = await supabase.auth.getSession();
+    return data.session?.access_token ?? null;
+  }, []);
+
+  const login = useCallback(async (email: string, password: string) => {
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) throw error;
+    // `onAuthStateChange` will fire and update React state for us.
+  }, []);
+
+  const signUp = useCallback(
+    async (email: string, password: string): Promise<{ needsEmailConfirm: boolean }> => {
+      const { data, error } = await supabase.auth.signUp({ email, password });
+      if (error) throw error;
+      // If "Confirm email" is enabled in the Supabase dashboard, signUp returns
+      // a user but no session — the user has to click the email link before
+      // they can sign in.
+      return { needsEmailConfirm: !data.session };
+    },
+    [],
+  );
 
   const logout = useCallback(async () => {
-    try {
-      const token = await secureGet(AUTH_TOKEN_KEY);
-      if (token) {
-        const apiBase = getApiBaseUrl();
-        await fetch(`${apiBase}/api/mobile-auth/logout`, {
-          method: "POST",
-          headers: { Authorization: `Bearer ${token}` },
-        });
-      }
-    } catch {
-    } finally {
-      await secureDelete(AUTH_TOKEN_KEY);
-      setUser(null);
-    }
+    await supabase.auth.signOut();
+    setUser(null);
+    lastTokenRef.current = null;
   }, []);
 
   return (
@@ -189,6 +192,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isLoading,
         isAuthenticated: !!user,
         login,
+        signUp,
         logout,
         getValidToken,
       }}

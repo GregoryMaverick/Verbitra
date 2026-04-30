@@ -10,13 +10,13 @@ Verbitra is an Expo React Native mobile app with a Node/Express API and shared T
 
 ### “Key decisions” we made
 - **Database**: Supabase Postgres is the source of truth (Render Postgres is a leftover and can be deleted once you confirm `verbitra-api` uses Supabase `DATABASE_URL`).
-- **Beta auth**: Sign-in is **not required** for beta; Replit OIDC code is still present server-side as a **follow-up** to replace before a full public launch.
+- **Auth**: Email + password via **Supabase Auth**. Sign-in is **optional** in v1.0 (most data is local); v1.1 promotes signing in for cross-device sync. The old Replit OIDC flow has been removed.
 - **EAS config**: The app reads the API URL from `EXPO_PUBLIC_API_BASE_URL` (must include the `/api` suffix).
 
 ### Most common commands
 - **Install**: `corepack enable && pnpm install`
 - **Run API**: `pnpm --filter @workspace/api-server run dev`
-- **Run mobile (Expo)**: `pnpm --filter @workspace/memorizer-app run dev`
+- **Run mobile (Expo Go)**: `pnpm --filter @workspace/memorizer-app run dev`
 - **Run landing**: `pnpm --filter @workspace/landing run dev`
 - **Build Android AAB (Play Store)**:
   - `cd artifacts/memorizer-app && eas build --platform android --profile store`
@@ -123,11 +123,46 @@ eas build --platform android --profile store
 
 Increment `expo.android.versionCode` in `artifacts/memorizer-app/app.json` for every Play Store upload.
 
-## Important Production Blocker
+## Auth (Supabase)
 
-The Replit runtime has been removed, but auth replacement is intentionally deferred. The current login code still defaults to Replit OIDC in `artifacts/api-server/src/lib/auth.ts` and `artifacts/api-server/src/routes/auth.ts`.
+Authentication uses **Supabase Auth** (email + password). The mobile app talks
+to Supabase directly via `@supabase/supabase-js`; the API server validates the
+resulting JWT with the Supabase service role key on every request that calls
+`requireAuth`.
 
-Before a real Play Store launch, replace that auth flow. For a cheap indie-friendly path, finish the existing magic-link foundation and use an email sender such as Resend, Postmark, or SMTP.
+### Required environment variables
+
+Get all four from the Supabase dashboard → **Project Settings → API**.
+
+API server (`artifacts/api-server/.env`):
+
+```env
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=...   # service_role secret, server-side only
+```
+
+Mobile app (`artifacts/memorizer-app/.env.local` for dev, EAS env vars for builds):
+
+```env
+EXPO_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+EXPO_PUBLIC_SUPABASE_ANON_KEY=...   # anon public key, safe to ship in app
+```
+
+For EAS builds:
+
+```bash
+eas env:create --name EXPO_PUBLIC_SUPABASE_URL --value "https://your-project.supabase.co"
+eas env:create --name EXPO_PUBLIC_SUPABASE_ANON_KEY --value "your-anon-key"
+```
+
+### One-time Supabase dashboard setup
+
+1. **Enable email auth**: Authentication → Providers → Email (turn on, decide
+   whether to require email confirmation).
+2. **(Optional) Disable email confirmation** for faster testing during dev.
+3. **Verify the database connection string** under Settings → Database matches
+   `DATABASE_URL` used by the API server — both should point at the same
+   Supabase Postgres so the `users` table is shared.
 
 ## Optional Web Artifacts
 

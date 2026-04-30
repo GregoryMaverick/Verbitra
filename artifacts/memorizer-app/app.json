@@ -18,7 +18,7 @@
     },
     "android": {
       "package": "com.verbitra.app",
-      "versionCode": 3,
+      "versionCode": 5,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#07070A"
@@ -38,8 +38,7 @@
         }
       ],
       "permissions": [
-        "android.permission.CAMERA",
-        "android.permission.RECORD_AUDIO"
+        "android.permission.CAMERA"
       ]
     },
     "web": {
@@ -66,6 +65,12 @@
         {
           "photosPermission": "Verbitra needs access to your photo library to let you pick images for OCR.",
           "cameraPermission": "Verbitra needs camera access so you can photograph printed text for OCR."
+        }
+      ],
+      [
+        "./plugins/with-adi-registration.js",
+        {
+          "snippet": "C6EBWXPLKJNR4AAAAAAAAAAAA"
         }
       ]
     ],

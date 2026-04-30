@@ -360,27 +360,18 @@ export default function InputScreen() {
               <Text style={styles.uploadBtnSub}>Coming soon</Text>
             </View>
 
-            {Platform.OS === "web" ? (
-              <View
-                style={[styles.uploadBtn, styles.uploadBtnDisabled]}
-                testID="input-camera-btn"
-              >
-                <Feather name="camera" size={20} color={T.tertiary} />
-                <Text style={[styles.uploadBtnLabel, { color: T.tertiary }]}>Camera OCR</Text>
-                <Text style={styles.uploadBtnSub}>Coming soon</Text>
-              </View>
-            ) : (
-              <TouchableOpacity
-                style={styles.uploadBtn}
-                onPress={() => setCameraModalVisible(true)}
-                activeOpacity={0.8}
-                testID="input-camera-btn"
-              >
-                <Feather name="camera" size={20} color={T.primary} />
-                <Text style={[styles.uploadBtnLabel, { color: T.primary }]}>Camera OCR</Text>
-                <Text style={styles.uploadBtnSub}>Tap to scan</Text>
-              </TouchableOpacity>
-            )}
+            <TouchableOpacity
+              style={styles.uploadBtn}
+              onPress={() => setCameraModalVisible(true)}
+              activeOpacity={0.8}
+              testID="input-camera-btn"
+            >
+              <Feather name="camera" size={20} color={T.primary} />
+              <Text style={[styles.uploadBtnLabel, { color: T.primary }]}>Camera OCR</Text>
+              <Text style={styles.uploadBtnSub}>
+                {Platform.OS === "web" ? "Upload photos to scan" : "Tap to scan"}
+              </Text>
+            </TouchableOpacity>
           </View>
         ) : null}
       </ScrollView>
@@ -406,22 +397,18 @@ export default function InputScreen() {
     </View>
     </KeyboardAvoidingView>
 
-    {Platform.OS !== "web" && (
-      <>
-        <CameraOCRModal
-          visible={cameraModalVisible}
-          onClose={() => setCameraModalVisible(false)}
-          onConfirm={handleOcrConfirm}
-        />
-        <OCRReviewModal
-          visible={reviewModalVisible}
-          initialText={ocrText}
-          ocrWords={ocrWords}
-          onClose={() => setReviewModalVisible(false)}
-          onConfirm={handleOcrReviewConfirm}
-        />
-      </>
-    )}
+    <CameraOCRModal
+      visible={cameraModalVisible}
+      onClose={() => setCameraModalVisible(false)}
+      onConfirm={handleOcrConfirm}
+    />
+    <OCRReviewModal
+      visible={reviewModalVisible}
+      initialText={ocrText}
+      ocrWords={ocrWords}
+      onClose={() => setReviewModalVisible(false)}
+      onConfirm={handleOcrReviewConfirm}
+    />
 
     <PaywallModal
       visible={paywallVisible}

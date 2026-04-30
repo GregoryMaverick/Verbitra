@@ -1,4 +1,6 @@
 import { Feather } from "@expo/vector-icons";
+import Constants from "expo-constants";
+import * as Linking from "expo-linking";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
@@ -167,6 +169,39 @@ export default function SettingsScreen() {
   const [paywallVisible, setPaywallVisible] = useState(false);
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const [timePickerVisible, setTimePickerVisible] = useState(false);
+
+  const PRIVACY_URL = "https://verbitra-landing.onrender.com/privacy.html";
+  const FEEDBACK_EMAIL = "ideasandbets@gmail.com";
+
+  const getAppVersionLabel = () => {
+    const expoConfigVersion = Constants.expoConfig?.version;
+    const manifestVersion =
+      typeof (Constants as any).manifest?.version === "string" ? (Constants as any).manifest.version : undefined;
+    const nativeVersion =
+      typeof (Constants as any).nativeAppVersion === "string" ? (Constants as any).nativeAppVersion : undefined;
+    return expoConfigVersion ?? manifestVersion ?? nativeVersion ?? "unknown";
+  };
+
+  const openExternalUrl = async (url: string, cannotOpenMessage: string) => {
+    try {
+      const canOpen = await Linking.canOpenURL(url);
+      if (!canOpen) {
+        Alert.alert("Can't open link", cannotOpenMessage);
+        return;
+      }
+      await Linking.openURL(url);
+    } catch {
+      Alert.alert("Can't open link", cannotOpenMessage);
+    }
+  };
+
+  const handleOpenPrivacyPolicy = () => {
+    openExternalUrl(PRIVACY_URL, `Please visit:\n${PRIVACY_URL}`);
+  };
+
+  const handleSendFeedback = () => {
+    router.push("/feedback");
+  };
 
   const handleToggleGlobalNotifications = async (value: boolean) => {
     if (value && Platform.OS !== "web") {
@@ -341,13 +376,13 @@ export default function SettingsScreen() {
           <SettingRow
             icon="file-text"
             label="Privacy Policy"
-            onPress={() => {}}
+            onPress={handleOpenPrivacyPolicy}
           />
           <View style={styles.divider} />
           <SettingRow
             icon="mail"
             label="Feedback"
-            onPress={() => {}}
+            onPress={handleSendFeedback}
           />
         </View>
       </ScrollView>

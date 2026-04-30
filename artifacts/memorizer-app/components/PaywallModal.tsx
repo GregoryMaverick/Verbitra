@@ -15,6 +15,7 @@ import type { PurchasesPackage } from "react-native-purchases";
 import { T } from "@/constants/tokens";
 import { useSubscription } from "@/lib/revenuecat";
 import { useAuth } from "@/context/AuthContext";
+import { router } from "expo-router";
 
 interface Props {
   visible: boolean;
@@ -52,7 +53,7 @@ function isAnnual(pkg: PurchasesPackage): boolean {
 export default function PaywallModal({ visible, onDismiss, onSubscribed, reason, nonDismissable = false }: Props) {
   const insets = useSafeAreaInsets();
   const { offerings, purchase, restore, isPurchasing, isLoading } = useSubscription();
-  const { isAuthenticated, login } = useAuth();
+  const { isAuthenticated } = useAuth();
   const [selectedPkg, setSelectedPkg] = useState<PurchasesPackage | null>(null);
   const [restoring, setRestoring] = useState(false);
   const [pendingPurchase, setPendingPurchase] = useState(false);
@@ -104,11 +105,16 @@ export default function PaywallModal({ visible, onDismiss, onSubscribed, reason,
   const handlePurchase = async () => {
     if (!effectiveSelected) return;
     if (!isAuthenticated) {
+      // Sign-in is now a full-screen form (Supabase email + password) rather
+      // than a programmatic browser flow, so we send the user there and let
+      // the useEffect below resume the purchase when isAuthenticated flips.
       setPendingPurchase(true);
       setSigningIn(true);
-      await login();
-      // State updates (isAuthenticated) are async — the useEffect handles success.
-      // If login was cancelled, clear the signing-in indicator after a short delay.
+      onDismiss();
+      router.push("/(auth)/sign-in" as never);
+      // We can't tell from here whether the user actually signs in, so clear
+      // the spinner after a short grace period — if they do sign in, the
+      // useEffect that watches isAuthenticated will trigger executePurchase.
       setTimeout(() => {
         setSigningIn((cur) => {
           if (cur) setPendingPurchase(false);
@@ -123,7 +129,8 @@ export default function PaywallModal({ visible, onDismiss, onSubscribed, reason,
   const handleRestore = async () => {
     if (!isAuthenticated) {
       setPendingPurchase(false);
-      await login();
+      onDismiss();
+      router.push("/(auth)/sign-in" as never);
       return;
     }
     setRestoring(true);

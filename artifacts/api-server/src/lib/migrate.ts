@@ -60,6 +60,17 @@ export async function runMigrations(): Promise<void> {
       created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
 
+    CREATE TABLE IF NOT EXISTS feedback (
+      id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id     UUID REFERENCES users(id) ON DELETE SET NULL,
+      email       TEXT,
+      message     TEXT NOT NULL,
+      app_version TEXT,
+      platform    TEXT,
+      os_version  TEXT,
+      created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
     CREATE TABLE IF NOT EXISTS deadlines (
       id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       text_id          UUID NOT NULL REFERENCES texts(id) ON DELETE CASCADE,
