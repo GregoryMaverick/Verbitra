@@ -21,6 +21,13 @@ import { TESSERACT_WEBVIEW_HTML } from "@/lib/ocrWebViewHtml";
 
 const MAX_PHOTOS = 5;
 const TARGET_MAX_DIMENSION = 2000;
+const OCR_ENGINE_TIMEOUT_MS = 30000;
+const OCR_RECOGNIZE_TIMEOUT_MS = 90000;
+const TESSERACT_WORKER_PATH =
+  "https://cdn.jsdelivr.net/npm/tesseract.js@7.0.0/dist/worker.min.js";
+const TESSERACT_CORE_PATH = "https://cdn.jsdelivr.net/npm/tesseract.js-core@7.0.0";
+const TESSERACT_LANG_PATH =
+  "https://cdn.jsdelivr.net/npm/@tesseract.js-data/eng@1/4.0.0_best_int";
 
 const WebViewComponent =
   Platform.OS === "web" ? null : (require("react-native-webview").WebView as any);
@@ -43,23 +50,33 @@ async function ensureTesseractLoaded(): Promise<any> {
       script.async = true;
       script.src = "https://cdn.jsdelivr.net/npm/tesseract.js@7.0.0/dist/tesseract.min.js";
       script.onload = () => resolve();
-      script.onerror = () => reject(new Error("Failed to load OCR engine script."));
+      script.onerror = () => reject(new Error("Couldn't load text recognition. Check your connection."));
       document.head.appendChild(script);
     });
   }
 
   if (window.Tesseract?.createWorker) return window.Tesseract;
-  throw new Error("OCR engine failed to initialise.");
+  throw new Error("Text recognition didn't start. Try again.");
 }
 
-export interface OcrWord {
-  text: string;
-  confidence: number;
-}
-
-export interface OcrPageResult {
-  words: OcrWord[];
-  rawText: string;
+function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  message: string
+): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(message)), timeoutMs);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timer);
+        reject(error);
+      }
+    );
+  });
 }
 
 interface CapturedPhoto {
@@ -70,7 +87,7 @@ interface CapturedPhoto {
 interface CameraOCRModalProps {
   visible: boolean;
   onClose: () => void;
-  onConfirm: (text: string, words: OcrWord[]) => void;
+  onConfirm: (text: string) => void;
 }
 
 
@@ -81,11 +98,13 @@ export default function CameraOCRModal({
 }: CameraOCRModalProps) {
   const insets = useSafeAreaInsets();
   const webViewRef = useRef<any>(null);
+  const webOcrButtonRef = useRef<any>(null);
   const [photos, setPhotos] = useState<CapturedPhoto[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingStatus, setProcessingStatus] = useState("");
   const webViewReadyRef = useRef(false);
   const pendingOcrRef = useRef<string[] | null>(null);
+  const autoPickerOpenedRef = useRef(false);
 
   const preprocessAsset = useCallback(async (asset: ImagePicker.ImagePickerAsset) => {
     // OCR gets dramatically worse with heavy compression, incorrect rotation,
@@ -236,6 +255,16 @@ export default function CameraOCRModal({
     );
   }, [photos.length, addAssetAsPhoto]);
 
+  useEffect(() => {
+    if (!visible) {
+      autoPickerOpenedRef.current = false;
+      return;
+    }
+    if (autoPickerOpenedRef.current || isProcessing) return;
+    autoPickerOpenedRef.current = true;
+    void pickPhoto();
+  }, [visible, isProcessing, pickPhoto]);
+
   const removePhoto = useCallback((index: number) => {
     setPhotos((prev) => prev.filter((_, i) => i !== index));
   }, []);
@@ -267,55 +296,58 @@ export default function CameraOCRModal({
     });
 
     setIsProcessing(true);
-    setProcessingStatus("Initialising OCR engine…");
+    setProcessingStatus("Preparing…");
 
     if (Platform.OS === "web") {
       try {
-        const Tesseract = await ensureTesseractLoaded();
-        const worker = await Tesseract.createWorker("eng", 1, {
-          workerPath: "https://cdn.jsdelivr.net/npm/tesseract.js@7.0.0/dist/worker.min.js",
-          corePath: "https://cdn.jsdelivr.net/npm/tesseract.js-core@7.0.0",
-          langPath: "https://cdn.jsdelivr.net/npm/tesseract.js-core@7.0.0/lang-data",
+        const Tesseract = await withTimeout(
+          ensureTesseractLoaded(),
+          OCR_ENGINE_TIMEOUT_MS,
+          "Timed out loading text recognition. Check your connection."
+        );
+        setProcessingStatus("Loading…");
+        const worker: any = await withTimeout(
+          Tesseract.createWorker("eng", 1, {
+          workerPath: TESSERACT_WORKER_PATH,
+          corePath: TESSERACT_CORE_PATH,
+          langPath: TESSERACT_LANG_PATH,
           logger: (m: any) => {
             if (m?.status === "recognizing text") {
               setProcessingStatus(
-                `Processing photo… ${Math.round((m.progress ?? 0) * 100)}%`
+                `Reading… ${Math.round((m.progress ?? 0) * 100)}%`
               );
             }
           },
-        });
+          }),
+          OCR_ENGINE_TIMEOUT_MS,
+          "Timed out starting text recognition. Check your connection and try again."
+        );
 
-        const pages: OcrPageResult[] = [];
+        const textParts: string[] = [];
         for (let i = 0; i < base64Images.length; i++) {
-          setProcessingStatus(`Processing photo ${i + 1} of ${base64Images.length}…`);
+          setProcessingStatus(`Reading photo ${i + 1} of ${base64Images.length}…`);
           // eslint-disable-next-line no-await-in-loop
-          const result = await worker.recognize(base64Images[i]);
+          const result = await withTimeout(
+            worker.recognize(base64Images[i]),
+            OCR_RECOGNIZE_TIMEOUT_MS,
+            "Timed out reading text from this image. Try cropping closer to the text."
+          );
           const data: any = (result as any)?.data;
-          const rawWords = Array.isArray(data?.words) ? data.words : [];
           const rawText = typeof data?.text === "string" ? data.text : "";
-          pages.push({
-            rawText,
-            words: rawWords.map((w: any) => ({
-              text: String(w.text ?? ""),
-              confidence: Number(w.confidence ?? 0),
-            })),
-          });
+          textParts.push(rawText.trim());
         }
 
         await worker.terminate();
 
-        const allWords: OcrWord[] = [];
-        const textParts: string[] = [];
-        for (const page of pages) {
-          allWords.push(...page.words);
-          textParts.push(page.rawText.trim());
-        }
         const stitchedText = textParts.join("\n---\n");
         reset();
-        onConfirm(stitchedText, allWords);
+        onConfirm(stitchedText);
       } catch (e: any) {
         setIsProcessing(false);
-        Alert.alert("OCR Error", e?.message || "Could not process the images. Please try again.");
+        Alert.alert(
+          "Couldn't read text",
+          e?.message || "Could not read text from these photos. Please try again."
+        );
       }
       return;
     }
@@ -326,7 +358,24 @@ export default function CameraOCRModal({
     } else {
       pendingOcrRef.current = base64Images;
     }
-  }, [photos, isProcessing]);
+  }, [photos, isProcessing, onConfirm, reset]);
+
+  useEffect(() => {
+    if (Platform.OS !== "web") return;
+    const node = webOcrButtonRef.current;
+    if (!node) return;
+
+    const handleClick = (event: Event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      void runOcr();
+    };
+
+    node.addEventListener("click", handleClick);
+    return () => {
+      node.removeEventListener("click", handleClick);
+    };
+  }, [runOcr, photos.length]);
 
   useEffect(() => {
     if (!isProcessing) return;
@@ -338,8 +387,8 @@ export default function CameraOCRModal({
         setProcessingStatus("");
         pendingOcrRef.current = null;
         Alert.alert(
-          "OCR didn't start",
-          "The OCR engine didn't finish loading. Please try again. If this keeps happening, restart the app."
+          "Couldn't start",
+          "Text recognition didn't finish starting. Try again or restart the app."
         );
       }
     }, 12000);
@@ -365,33 +414,31 @@ export default function CameraOCRModal({
           }
         } else if (msg.type === "progress") {
           if (msg.status === "init") {
-            setProcessingStatus("Loading OCR engine…");
+            setProcessingStatus("Loading…");
           } else {
             setProcessingStatus(
-              `Processing photo ${msg.page} of ${msg.total}…`
+              `Reading photo ${msg.page} of ${msg.total}…`
             );
           }
         } else if (msg.type === "result") {
           setIsProcessing(false);
-          const pages: OcrPageResult[] = msg.pages;
-          const allWords: OcrWord[] = [];
+          const pages: { rawText: string }[] = msg.pages;
           const textParts: string[] = [];
 
           for (const page of pages) {
-            allWords.push(...page.words);
-            textParts.push(page.rawText.trim());
+            textParts.push(String(page.rawText ?? "").trim());
           }
 
           const stitchedText = textParts.join("\n---\n");
           reset();
-          onConfirm(stitchedText, allWords);
+          onConfirm(stitchedText);
         } else if (msg.type === "error") {
           setIsProcessing(false);
           const details =
             typeof msg.message === "string" && msg.message.trim().length > 0
               ? msg.message
               : JSON.stringify(msg);
-          Alert.alert("OCR Error", details || "Could not process the images. Please try again.");
+          Alert.alert("Couldn't read text", details || "Could not read text from these photos.");
         }
       } catch {
         // eslint-disable-next-line no-console
@@ -413,14 +460,14 @@ export default function CameraOCRModal({
           <TouchableOpacity onPress={handleClose} style={styles.closeBtn} hitSlop={8}>
             <Feather name="x" size={22} color={T.secondary} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Camera OCR</Text>
+          <Text style={styles.headerTitle}>Scan from photo</Text>
           <Text style={styles.photoCount}>
             {photos.length}/{MAX_PHOTOS}
           </Text>
         </View>
 
         <Text style={styles.subtitle}>
-          Photograph printed text — up to {MAX_PHOTOS} pages.
+          Add up to {MAX_PHOTOS} photos with clear printed text.
         </Text>
 
         {photos.length > 0 ? (
@@ -477,9 +524,9 @@ export default function CameraOCRModal({
         ) : (
           <TouchableOpacity style={styles.emptyPickArea} onPress={pickPhoto}>
             <Feather name="camera" size={40} color={T.primary} />
-            <Text style={styles.emptyPickTitle}>Add your first photo</Text>
+            <Text style={styles.emptyPickTitle}>Add a photo</Text>
             <Text style={styles.emptyPickSub}>
-              Take a photo or choose from your library
+              Tap here if the picker didn&apos;t open — camera or library
             </Text>
           </TouchableOpacity>
         )}
@@ -490,19 +537,40 @@ export default function CameraOCRModal({
               <ActivityIndicator size="small" color={T.primary} />
               <Text style={styles.processingText}>{processingStatus}</Text>
             </View>
+          ) : Platform.OS === "web" ? (
+            React.createElement(
+              "button",
+              {
+                ref: webOcrButtonRef,
+                type: "button",
+                onClick: (event: any) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  void runOcr();
+                },
+                disabled: photos.length === 0,
+                style: {
+                  ...styles.webOcrBtn,
+                  ...(photos.length === 0 ? styles.webOcrBtnDisabled : null),
+                } as any,
+              },
+              `Extract text${photos.length > 1 ? ` (${photos.length} photos)` : ""}`
+            )
           ) : (
             <TouchableOpacity
               style={[
                 styles.ocrBtn,
                 photos.length === 0 && styles.ocrBtnDisabled,
               ]}
-              onPress={runOcr}
+              onPress={() => {
+                void runOcr();
+              }}
               disabled={photos.length === 0}
               activeOpacity={0.85}
             >
               <Feather name="zap" size={18} color="#fff" />
               <Text style={styles.ocrBtnText}>
-                Run OCR{photos.length > 1 ? ` on ${photos.length} photos` : ""}
+                Extract text{photos.length > 1 ? ` (${photos.length} photos)` : ""}
               </Text>
             </TouchableOpacity>
           )}
@@ -517,9 +585,22 @@ export default function CameraOCRModal({
               onMessage={handleWebViewMessage}
               javaScriptEnabled
               originWhitelist={["about:", "blob:"]}
-              onError={() => {
+              onLoadEnd={() => {
+                // eslint-disable-next-line no-console
+                console.log("[OCR WebView] load end");
+              }}
+              onHttpError={(e: any) => {
+                // eslint-disable-next-line no-console
+                console.log("[OCR WebView] http error", e?.nativeEvent);
+              }}
+              onError={(e: any) => {
                 setIsProcessing(false);
-                Alert.alert("Error", "Failed to load OCR engine.");
+                // eslint-disable-next-line no-console
+                console.log("[OCR WebView] error", e?.nativeEvent);
+                Alert.alert(
+                  "Error",
+                  e?.nativeEvent?.description || "Couldn't load text recognition."
+                );
               }}
             />
           ) : null}
@@ -673,6 +754,22 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 16,
     fontWeight: "700" as const,
+  },
+  webOcrBtn: {
+    width: "100%",
+    backgroundColor: T.primary,
+    borderRadius: 14,
+    borderWidth: 0,
+    paddingTop: 16,
+    paddingBottom: 16,
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "700" as const,
+    cursor: "pointer",
+  },
+  webOcrBtnDisabled: {
+    opacity: 0.45,
+    cursor: "default",
   },
   hiddenWebView: {
     position: "absolute",

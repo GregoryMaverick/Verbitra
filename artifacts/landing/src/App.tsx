@@ -693,7 +693,7 @@ function Footer({ onTryNow }: { onTryNow: () => void }) {
         <p>© 2026 Verbitra</p>
         <p>Built for people who need the exact words.</p>
         <p>
-          <a href="/privacy.html">Privacy</a>
+          <a href="/privacy">Privacy</a>
         </p>
       </div>
     </footer>

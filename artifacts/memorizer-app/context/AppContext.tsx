@@ -11,8 +11,9 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuth } from "./AuthContext";
 import { cancelTextNotifications, cancelAllNotifications, scheduleReviewNotification } from "@/hooks/useNotifications";
 import { scheduleFirstReview as fsrsScheduleFirst, applyRating as fsrsApplyRating, type FsrsRating, type FsrsCardState, type ReviewResult } from "@/lib/fsrs";
+import { API_BASE } from "@/lib/api";
 
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? "";
+const API_BASE_URL = API_BASE;
 if (!API_BASE_URL) {
   console.error(
     "[AppContext] EXPO_PUBLIC_API_BASE_URL is not set. " +

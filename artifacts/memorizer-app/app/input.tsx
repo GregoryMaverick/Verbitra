@@ -17,8 +17,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { T } from "@/constants/tokens";
 import { useApp } from "@/context/AppContext";
-import CameraOCRModal, { type OcrWord } from "@/components/CameraOCRModal";
-import OCRReviewModal from "@/components/OCRReviewModal";
+import CameraOCRModal from "@/components/CameraOCRModal";
 import { chunkText } from "@/lib/chunker";
 import { useSubscription } from "@/lib/revenuecat";
 import PaywallModal from "@/components/PaywallModal";
@@ -59,9 +58,6 @@ export default function InputScreen() {
   const hasAutoEnabledChunks = React.useRef(useChunks);
   const titleRef = useRef<TextInput>(null);
   const [cameraModalVisible, setCameraModalVisible] = useState(false);
-  const [reviewModalVisible, setReviewModalVisible] = useState(false);
-  const [ocrText, setOcrText] = useState("");
-  const [ocrWords, setOcrWords] = useState<OcrWord[]>([]);
   const [expandedChunks, setExpandedChunks] = useState<Set<number>>(new Set());
   const [paywallVisible, setPaywallVisible] = useState(false);
   const [gate2PaywallShown, setGate2PaywallShown] = useState(false);
@@ -156,18 +152,9 @@ export default function InputScreen() {
     router.push("/deadline");
   };
 
-  const handleOcrConfirm = useCallback((extractedText: string, words: OcrWord[]) => {
-    setOcrText(extractedText);
-    setOcrWords(words);
+  const handleOcrConfirm = useCallback((extractedText: string) => {
+    setText(extractedText.trim());
     setCameraModalVisible(false);
-    setReviewModalVisible(true);
-  }, []);
-
-  const handleOcrReviewConfirm = useCallback((reviewedText: string) => {
-    setText(reviewedText);
-    setReviewModalVisible(false);
-    setOcrText("");
-    setOcrWords([]);
   }, []);
 
   return (
@@ -367,9 +354,9 @@ export default function InputScreen() {
               testID="input-camera-btn"
             >
               <Feather name="camera" size={20} color={T.primary} />
-              <Text style={[styles.uploadBtnLabel, { color: T.primary }]}>Camera OCR</Text>
+              <Text style={[styles.uploadBtnLabel, { color: T.primary }]}>Scan from photo</Text>
               <Text style={styles.uploadBtnSub}>
-                {Platform.OS === "web" ? "Upload photos to scan" : "Tap to scan"}
+                {Platform.OS === "web" ? "Turn photos into editable text" : "Camera or photo library"}
               </Text>
             </TouchableOpacity>
           </View>
@@ -401,13 +388,6 @@ export default function InputScreen() {
       visible={cameraModalVisible}
       onClose={() => setCameraModalVisible(false)}
       onConfirm={handleOcrConfirm}
-    />
-    <OCRReviewModal
-      visible={reviewModalVisible}
-      initialText={ocrText}
-      ocrWords={ocrWords}
-      onClose={() => setReviewModalVisible(false)}
-      onConfirm={handleOcrReviewConfirm}
     />
 
     <PaywallModal

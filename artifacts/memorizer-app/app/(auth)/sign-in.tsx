@@ -37,6 +37,23 @@ export default function SignInScreen() {
 
   const canSubmit = email.trim().length > 0 && password.length > 0 && !submitting;
 
+  function formatAuthError(err: unknown): string {
+    const msg = err instanceof Error ? err.message : String(err);
+    const normalized = msg.toLowerCase();
+
+    // Supabase commonly returns this when the anon key or URL is wrong.
+    // Without this hint, users assume "my email/password is wrong".
+    if (normalized.includes("invalid api key")) {
+      return (
+        "Sign-in is misconfigured (Supabase rejected the API key).\n\n" +
+        "Fix: set the correct EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY for this build " +
+        "(EAS → your project's Environment variables), then rebuild the app."
+      );
+    }
+
+    return msg || "Something went wrong. Try again.";
+  }
+
   const handleSubmit = async () => {
     if (!canSubmit) return;
     setSubmitting(true);
@@ -48,9 +65,7 @@ export default function SignInScreen() {
       if (router.canGoBack()) router.back();
       else router.replace("/(tabs)");
     } catch (err) {
-      setErrorMsg(
-        err instanceof Error ? err.message : "Something went wrong. Try again.",
-      );
+      setErrorMsg(formatAuthError(err));
     } finally {
       setSubmitting(false);
     }

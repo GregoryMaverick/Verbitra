@@ -13,6 +13,13 @@ function resolveApiBase(): string {
 
 export const API_BASE = resolveApiBase();
 
+function getApiBaseOrThrow(): string {
+  if (API_BASE) return API_BASE;
+  throw new Error(
+    "API base URL not configured. Set EXPO_PUBLIC_API_BASE_URL in artifacts/memorizer-app/.env.local (copy from .env.example), then restart Expo.",
+  );
+}
+
 export interface MnemonicResponse {
   id: number;
   textId: string;
@@ -38,9 +45,10 @@ export async function triggerMnemonicGeneration(
   token?: string | null,
   contentType?: string,
 ): Promise<{ status: string }> {
+  const base = getApiBaseOrThrow();
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (token) headers["Authorization"] = `Bearer ${token}`;
-  const res = await fetch(`${API_BASE}/texts/${textId}/mnemonic`, {
+  const res = await fetch(`${base}/texts/${textId}/mnemonic`, {
     method: "POST",
     headers,
     body: JSON.stringify({ content, daysLeft, contentType }),
@@ -55,9 +63,10 @@ export async function triggerMnemonicGeneration(
 }
 
 export async function fetchMnemonic(textId: string, token?: string | null): Promise<MnemonicResponse> {
+  const base = getApiBaseOrThrow();
   const headers: Record<string, string> = {};
   if (token) headers["Authorization"] = `Bearer ${token}`;
-  const res = await fetch(`${API_BASE}/texts/${textId}/mnemonic`, { headers });
+  const res = await fetch(`${base}/texts/${textId}/mnemonic`, { headers });
 
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
@@ -72,9 +81,10 @@ export async function triggerAcronymGeneration(
   content: string,
   token?: string | null,
 ): Promise<{ status: string }> {
+  const base = getApiBaseOrThrow();
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (token) headers["Authorization"] = `Bearer ${token}`;
-  const res = await fetch(`${API_BASE}/texts/${textId}/acronym`, {
+  const res = await fetch(`${base}/texts/${textId}/acronym`, {
     method: "POST",
     headers,
     body: JSON.stringify({ content }),
@@ -89,9 +99,10 @@ export async function triggerAcronymGeneration(
 }
 
 export async function fetchAcronym(textId: string, token?: string | null): Promise<AcronymResponse> {
+  const base = getApiBaseOrThrow();
   const headers: Record<string, string> = {};
   if (token) headers["Authorization"] = `Bearer ${token}`;
-  const res = await fetch(`${API_BASE}/texts/${textId}/acronym`, { headers });
+  const res = await fetch(`${base}/texts/${textId}/acronym`, { headers });
 
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
@@ -105,9 +116,10 @@ export async function detectContentType(
   textId: string,
   token?: string | null,
 ): Promise<{ contentType: string; source: string }> {
+  const base = getApiBaseOrThrow();
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (token) headers["Authorization"] = `Bearer ${token}`;
-  const res = await fetch(`${API_BASE}/texts/${textId}/detect-content-type`, {
+  const res = await fetch(`${base}/texts/${textId}/detect-content-type`, {
     method: "POST",
     headers,
   });
