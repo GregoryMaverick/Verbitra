@@ -105,7 +105,7 @@ The App and Service are operated from the United States. If you use the App from
 If you have any questions or requests about this Privacy Policy or your data, contact us at:
 
 **Verbitra**
-Email: privacy@verbitra.app
+Email: ideasandbets@gmail.com
 
 ---
 

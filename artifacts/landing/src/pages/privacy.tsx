@@ -234,8 +234,8 @@ export default function Privacy() {
                   <strong>Verbitra</strong>
                   <br />
                   Email:{" "}
-                  <a href="mailto:privacy@verbitra.app" rel="noreferrer">
-                    privacy@verbitra.app
+                  <a href="mailto:ideasandbets@gmail.com" rel="noreferrer">
+                    ideasandbets@gmail.com
                   </a>
                 </p>
               </LegalSection>
