@@ -1,6 +1,6 @@
 # Privacy Policy for Verbitra
 
-**Last updated:** April 28, 2026
+**Last updated:** May 1, 2026
 
 This Privacy Policy describes how Verbitra ("we", "us", or "our") collects, uses, and protects information when you use the Verbitra mobile application (the "App") and the related backend service hosted at `https://verbitra-api.onrender.com` (the "Service").
 
@@ -11,7 +11,7 @@ By using the App, you agree to the collection and use of information in accordan
 ## 1. Information We Collect
 
 ### 1.1 Information you provide directly
-- **Photos and images you capture or upload.** When you use the App's optical character recognition (OCR) feature, you photograph or select images containing text. These images are sent to our Service so the text can be extracted and returned to you. We do not use your images for advertising and we do not sell them.
+- **Photos and images you capture or upload.** When you use the App's optical character recognition (OCR) feature, you photograph or select images containing text. These images are processed **entirely on your device** using Tesseract.js — they are never uploaded to our servers. Only the extracted text is used within the App.
 - **Text content.** Words, sentences, flashcards, notes, and other study material you create or import inside the App.
 - **Account information (if and when sign-in is available).** If you create an account in a future version of the App, we will collect your email address. We will update this Policy at that time and notify users in the App.
 
@@ -45,7 +45,7 @@ We do **not** use your data for advertising or for training third-party AI model
 We share your information only with the following categories of recipients, and only as needed to operate the App:
 
 - **Hosting and infrastructure providers** (such as Render and Supabase) which store and serve the data described above on our behalf.
-- **Optical character recognition (OCR) providers** that process the images you submit in order to return extracted text. Images are sent only for the purpose of producing OCR results for you.
+- **AI service providers** (such as Google Gemini) that process text you submit to generate mnemonics, acronyms, and study aids. Only text content is sent — never images.
 - **Crash and analytics providers**, if integrated, which receive anonymous diagnostic information.
 - **Payment and subscription providers** (Google Play and, if used, RevenueCat) which process purchases. We do not receive your full payment details.
 - **Legal and safety recipients**, where required by applicable law, legal process, or to protect the rights, property, or safety of users or the public.
@@ -56,7 +56,7 @@ We do not sell your personal information.
 
 ## 4. Data Retention
 
-- Images submitted for OCR are processed to return text and are retained only as long as needed to deliver and improve the feature. They are then deleted from active processing systems within a reasonable period.
+- Images captured for OCR are processed entirely on your device and are never uploaded to our servers. They remain in your device's temporary memory only during the OCR process.
 - Text content you create in the App is retained while your installation is active so the App can show it back to you.
 - Diagnostic logs are retained for a short, rolling window (typically 30 days or less).
 
