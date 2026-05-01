@@ -189,7 +189,12 @@ function TextCard({ item, onPress, onLongPress, onDelete, isNew, sessionsToday }
         )}
         {isMnemonicSuitable(contentType) && item.phase >= 2 && (
           <TouchableOpacity
-            onPress={() => router.push({ pathname: "/mnemonic", params: { textId: item.id, daysLeft: "0", readOnly: "true" } })}
+            onPress={(e) => {
+              // Prevent the parent card tap (open text) from firing.
+              // On web, nested touchables can bubble to the parent.
+              (e as any)?.stopPropagation?.();
+              router.push({ pathname: "/mnemonic", params: { textId: item.id, daysLeft: "0", readOnly: "true" } });
+            }}
             hitSlop={{ top: 12, bottom: 12, left: 8, right: 4 }}
             style={styles.cardMnemonicBtn}
           >
@@ -197,7 +202,11 @@ function TextCard({ item, onPress, onLongPress, onDelete, isNew, sessionsToday }
           </TouchableOpacity>
         )}
         <TouchableOpacity
-          onPress={onDelete}
+          onPress={(e) => {
+            // Prevent the parent card tap (open text) from firing.
+            (e as any)?.stopPropagation?.();
+            onDelete();
+          }}
           hitSlop={{ top: 12, bottom: 12, left: 4, right: 12 }}
           style={styles.cardDeleteBtn}
         >
@@ -502,18 +511,16 @@ export default function HomeScreen() {
         text: "Delete",
         style: "destructive",
         onPress: () => {
-          Alert.alert(
-            "Delete this text?",
-            "This cannot be undone.",
-            [
-              { text: "Cancel", style: "cancel" },
-              {
-                text: "Delete",
-                style: "destructive",
-                onPress: () => deleteText(item.id),
-              },
-            ]
-          );
+          if (Platform.OS === "web") {
+            // RN Alert is unreliable on web; use the browser confirm dialog.
+            const ok = window.confirm("Delete this text?\n\nThis cannot be undone.");
+            if (ok) void deleteText(item.id);
+            return;
+          }
+          Alert.alert("Delete this text?", "This cannot be undone.", [
+            { text: "Cancel", style: "cancel" },
+            { text: "Delete", style: "destructive", onPress: () => deleteText(item.id) },
+          ]);
         },
       },
       { text: "Cancel", style: "cancel" },
@@ -591,6 +598,11 @@ export default function HomeScreen() {
                 onPress={() => handleTextPress(item)}
                 onLongPress={() => handleTextLongPress(item)}
                 onDelete={() => {
+                  if (Platform.OS === "web") {
+                    const ok = window.confirm("Delete this text?\n\nThis cannot be undone.");
+                    if (ok) void deleteText(item.id);
+                    return;
+                  }
                   Alert.alert("Delete this text?", "This cannot be undone.", [
                     { text: "Cancel", style: "cancel" },
                     { text: "Delete", style: "destructive", onPress: () => deleteText(item.id) },

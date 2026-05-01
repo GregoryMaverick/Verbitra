@@ -7,3 +7,4 @@ export * from "./conversations";
 export * from "./messages";
 export * from "./mnemonics";
 export * from "./acronyms";
+export * from "./feedback";

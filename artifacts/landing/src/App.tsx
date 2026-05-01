@@ -692,6 +692,9 @@ function Footer({ onTryNow }: { onTryNow: () => void }) {
       <div className="shell footer-bottom">
         <p>© 2026 Verbitra</p>
         <p>Built for people who need the exact words.</p>
+        <p>
+          <a href="/privacy">Privacy</a>
+        </p>
       </div>
     </footer>
   );

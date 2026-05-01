@@ -66,6 +66,11 @@ export default function MnemonicScreen() {
       }
     } catch (err) {
       const msg = (err as Error).message ?? "";
+      if (msg.includes("API base URL not configured")) {
+        setStatus("error");
+        setErrorMsg(msg);
+        return;
+      }
       if (msg.includes("404") || msg.includes("not found")) {
         // No mnemonic yet — try to generate one from stored text if available.
         const storedEntry = texts.find((t) => t.id === textId);

@@ -130,7 +130,9 @@ function RootLayoutNav() {
       <Stack.Screen name="phase1-quiz" options={{ headerShown: false, presentation: "card" }} />
       <Stack.Screen name="practice" options={{ headerShown: false, presentation: "card" }} />
       <Stack.Screen name="results" options={{ headerShown: false, presentation: "card" }} />
+      <Stack.Screen name="feedback" options={{ headerShown: false, presentation: "card" }} />
       <Stack.Screen name="auth" options={{ headerShown: false, presentation: "modal" }} />
+      <Stack.Screen name="(auth)" options={{ headerShown: false, presentation: "modal" }} />
     </Stack>
   );
 }

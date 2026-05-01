@@ -8,6 +8,7 @@ import notificationsRouter from "./notifications";
 import textsMnemonicRouter from "./texts-mnemonic";
 import textsAcronymRouter from "./texts-acronym";
 import reviewsRouter from "./reviews";
+import feedbackRouter from "./feedback";
 
 const router: IRouter = Router();
 
@@ -20,5 +21,6 @@ router.use(sessionsRouter);
 router.use(syncRouter);
 router.use("/notifications", notificationsRouter);
 router.use(reviewsRouter);
+router.use(feedbackRouter);
 
 export default router;
