@@ -45,7 +45,7 @@ export default function Privacy() {
             <p className="eyebrow">Legal</p>
             <h1 className="display-title legal-title">Privacy Policy</h1>
             <p className="section-body legal-updated">
-              <strong>Last updated:</strong> April 28, 2026
+              <strong>Last updated:</strong> May 1, 2026
             </p>
           </div>
         </section>
@@ -74,9 +74,9 @@ export default function Privacy() {
                 <ul>
                   <li>
                     <strong>Photos and images you capture or upload.</strong> When you use the App's optical character
-                    recognition (OCR) feature, you photograph or select images containing text. These images are sent
-                    to our Service so the text can be extracted and returned to you. We do not use your images for
-                    advertising and we do not sell them.
+                    recognition (OCR) feature, you photograph or select images containing text. These images are
+                    processed <strong>entirely on your device</strong> using Tesseract.js — they are never uploaded to our servers.
+                    Only the extracted text is used within the App.
                   </li>
                   <li>
                     <strong>Text content.</strong> Words, sentences, flashcards, notes, and other study material you
@@ -145,9 +145,8 @@ export default function Privacy() {
                     serve the data described above on our behalf.
                   </li>
                   <li>
-                    <strong>Optical character recognition (OCR) providers</strong> that process the images you submit in
-                    order to return extracted text. Images are sent only for the purpose of producing OCR results for
-                    you.
+                    <strong>AI service providers</strong> (such as Google Gemini) that process text you submit to generate
+                    mnemonics, acronyms, and study aids. Only text content is sent — never images.
                   </li>
                   <li>
                     <strong>Crash and analytics providers</strong>, if integrated, which receive anonymous diagnostic
@@ -168,9 +167,8 @@ export default function Privacy() {
               <LegalSection title="4. Data Retention">
                 <ul>
                   <li>
-                    Images submitted for OCR are processed to return text and are retained only as long as needed to
-                    deliver and improve the feature. They are then deleted from active processing systems within a
-                    reasonable period.
+                    Images captured for OCR are processed entirely on your device and are never uploaded to our
+                    servers. They remain in your device's temporary memory only during the OCR process.
                   </li>
                   <li>
                     Text content you create in the App is retained while your installation is active so the App can show
