@@ -175,7 +175,7 @@ export default function InputScreen() {
         </TouchableOpacity>
         <View>
           <Text style={styles.headerTitle}>Add text</Text>
-          <Text style={styles.headerSubtitle}>Paste, upload, or capture</Text>
+          <Text style={styles.headerSubtitle}>Paste or scan from photo</Text>
         </View>
       </View>
 
@@ -338,15 +338,6 @@ export default function InputScreen() {
 
         {!showChunkOption || !useChunks ? (
           <View style={styles.buttonRow}>
-            <View
-              style={[styles.uploadBtn, styles.uploadBtnDisabled]}
-              testID="input-upload-btn"
-            >
-              <Feather name="file" size={20} color={T.tertiary} />
-              <Text style={[styles.uploadBtnLabel, { color: T.tertiary }]}>Upload file</Text>
-              <Text style={styles.uploadBtnSub}>Coming soon</Text>
-            </View>
-
             <TouchableOpacity
               style={styles.uploadBtn}
               onPress={() => setCameraModalVisible(true)}
@@ -354,10 +345,12 @@ export default function InputScreen() {
               testID="input-camera-btn"
             >
               <Feather name="camera" size={20} color={T.primary} />
-              <Text style={[styles.uploadBtnLabel, { color: T.primary }]}>Scan from photo</Text>
-              <Text style={styles.uploadBtnSub}>
-                {Platform.OS === "web" ? "Turn photos into editable text" : "Camera or photo library"}
-              </Text>
+              <View style={styles.uploadBtnTextContainer}>
+                <Text style={[styles.uploadBtnLabel, { color: T.primary }]}>Scan from photo</Text>
+                <Text style={styles.uploadBtnSub}>
+                  {Platform.OS === "web" ? "Turn photos into editable text" : "Camera or photo library"}
+                </Text>
+              </View>
             </TouchableOpacity>
           </View>
         ) : null}
@@ -592,16 +585,20 @@ const styles = StyleSheet.create({
     borderColor: T.border,
     borderRadius: 12,
     padding: 14,
+    flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    justifyContent: "center",
+    gap: 12,
+  },
+  uploadBtnTextContainer: {
+    alignItems: "flex-start",
   },
   uploadBtnLabel: {
-    fontSize: 11,
+    fontSize: 14,
     fontWeight: "600" as const,
     color: T.secondary,
   },
-  uploadBtnSub: { fontSize: 10, color: T.tertiary },
-  uploadBtnDisabled: { opacity: 0.5, borderStyle: "dashed" as const },
+  uploadBtnSub: { fontSize: 12, color: T.tertiary, marginTop: 2 },
   ctaContainer: { paddingTop: 0 },
   ctaBtn: {
     backgroundColor: T.primary,
