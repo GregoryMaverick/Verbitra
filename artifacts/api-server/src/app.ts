@@ -7,6 +7,7 @@ import { logger } from "./lib/logger";
 import { authMiddleware } from "./middlewares/authMiddleware";
 
 const app: Express = express();
+const apiBuildMarker = `auth-diagnostics:${process.env.RENDER_GIT_COMMIT ?? "local"}`;
 
 app.use(
   pinoHttp({
@@ -27,6 +28,10 @@ app.use(
     },
   }),
 );
+app.use((_req, res, next) => {
+  res.setHeader("X-Verbitra-Api-Build", apiBuildMarker);
+  next();
+});
 app.use(cors({ credentials: true, origin: true }));
 app.use(cookieParser());
 app.use(express.json());

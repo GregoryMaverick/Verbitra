@@ -41,12 +41,16 @@ router.get("/auth/user", async (req: Request, res: Response) => {
   // The mobile app's `lib/auth.tsx` reads `data.user`.
   const jwt = getBearerToken(req);
   if (!jwt) {
+    req.log?.warn("GET /auth/user called without bearer token");
     res.json({ user: null });
     return;
   }
 
   try {
     const user = await resolveSupabaseUser(jwt);
+    if (!user) {
+      req.log?.warn("GET /auth/user resolved no local user for bearer token");
+    }
     res.json({ user: user ?? null });
   } catch (err) {
     if (err instanceof AuthTokenError) {
