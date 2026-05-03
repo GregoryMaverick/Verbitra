@@ -19,9 +19,16 @@ import { type Request } from "express";
 import { eq } from "drizzle-orm";
 import { db, usersTable } from "@workspace/db";
 import type { AuthUser } from "@workspace/api-zod";
-import { supabaseAdmin } from "./supabase";
+import { getConfiguredSupabaseProjectRef, supabaseAdmin } from "./supabase";
 
 export const SESSION_COOKIE = "sid";
+
+export class AuthTokenError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "AuthTokenError";
+  }
+}
 
 export function getBearerToken(req: Request): string | undefined {
   const authHeader = req.headers["authorization"];
@@ -29,6 +36,37 @@ export function getBearerToken(req: Request): string | undefined {
     return authHeader.slice(7).trim() || undefined;
   }
   return undefined;
+}
+
+function readJwtPayload(jwt: string): Record<string, unknown> | null {
+  const payload = jwt.split(".")[1];
+  if (!payload) return null;
+
+  try {
+    const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = normalized.padEnd(
+      normalized.length + ((4 - (normalized.length % 4)) % 4),
+      "=",
+    );
+    return JSON.parse(Buffer.from(padded, "base64").toString("utf8")) as Record<
+      string,
+      unknown
+    >;
+  } catch {
+    return null;
+  }
+}
+
+function getSupabaseProjectRefFromJwt(jwt: string): string | null {
+  const payload = readJwtPayload(jwt);
+  const issuer = typeof payload?.iss === "string" ? payload.iss : null;
+  if (!issuer) return null;
+
+  try {
+    return new URL(issuer).hostname.split(".")[0] ?? null;
+  } catch {
+    return null;
+  }
 }
 
 // Validate a Supabase JWT and resolve it to the matching row in our local
@@ -46,8 +84,23 @@ export function getBearerToken(req: Request): string | undefined {
 export async function resolveSupabaseUser(
   jwt: string,
 ): Promise<AuthUser | null> {
+  const tokenProjectRef = getSupabaseProjectRefFromJwt(jwt);
+  const apiProjectRef = getConfiguredSupabaseProjectRef();
+  if (tokenProjectRef && apiProjectRef && tokenProjectRef !== apiProjectRef) {
+    throw new AuthTokenError(
+      `Supabase project mismatch: the app token was issued by "${tokenProjectRef}", but the API is configured for "${apiProjectRef}".`,
+    );
+  }
+
   const { data, error } = await supabaseAdmin.auth.getUser(jwt);
-  if (error || !data?.user) return null;
+  if (error) {
+    throw new AuthTokenError(
+      "Supabase rejected this access token. Confirm the mobile app and API server use the same Supabase project.",
+    );
+  }
+  if (!data?.user) {
+    throw new AuthTokenError("Supabase returned no user for this access token.");
+  }
 
   const supaUser = data.user;
   const email = supaUser.email ?? null;

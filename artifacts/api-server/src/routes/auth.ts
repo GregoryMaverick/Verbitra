@@ -23,7 +23,7 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { z } from "zod";
 import { supabaseAdmin } from "../lib/supabase";
-import { resolveSupabaseUser, getBearerToken } from "../lib/auth";
+import { AuthTokenError, resolveSupabaseUser, getBearerToken } from "../lib/auth";
 
 const router: IRouter = Router();
 
@@ -35,6 +35,8 @@ const Credentials = z.object({
 });
 
 router.get("/auth/user", async (req: Request, res: Response) => {
+  res.setHeader("Cache-Control", "no-store");
+
   // Backwards-compatible shape: `{ user: AuthUser | null }`.
   // The mobile app's `lib/auth.tsx` reads `data.user`.
   const jwt = getBearerToken(req);
@@ -47,6 +49,11 @@ router.get("/auth/user", async (req: Request, res: Response) => {
     const user = await resolveSupabaseUser(jwt);
     res.json({ user: user ?? null });
   } catch (err) {
+    if (err instanceof AuthTokenError) {
+      req.log?.warn({ err }, "GET /auth/user rejected Supabase token");
+      res.status(401).json({ error: err.message });
+      return;
+    }
     req.log?.error({ err }, "GET /auth/user failed");
     res.status(500).json({ error: "Failed to load user" });
   }
