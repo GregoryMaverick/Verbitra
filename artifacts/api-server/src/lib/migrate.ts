@@ -84,6 +84,30 @@ export async function runMigrations(): Promise<void> {
   `);
 
   await pool.query(`
+    ALTER TABLE users
+      ADD COLUMN IF NOT EXISTS replit_id VARCHAR;
+    ALTER TABLE users
+      ADD COLUMN IF NOT EXISTS first_name VARCHAR;
+    ALTER TABLE users
+      ADD COLUMN IF NOT EXISTS last_name VARCHAR;
+    ALTER TABLE users
+      ADD COLUMN IF NOT EXISTS profile_image_url VARCHAR;
+
+    CREATE UNIQUE INDEX IF NOT EXISTS users_replit_id_unique
+      ON users (replit_id)
+      WHERE replit_id IS NOT NULL;
+
+    CREATE TABLE IF NOT EXISTS auth_sessions (
+      sid     VARCHAR PRIMARY KEY,
+      sess    JSONB NOT NULL,
+      expire  TIMESTAMPTZ NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS IDX_auth_session_expire
+      ON auth_sessions (expire);
+  `);
+
+  await pool.query(`
     ALTER TABLE texts
       ADD COLUMN IF NOT EXISTS consecutive_good_sessions INTEGER NOT NULL DEFAULT 0;
     ALTER TABLE texts
