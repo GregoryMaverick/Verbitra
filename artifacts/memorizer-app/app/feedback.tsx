@@ -16,8 +16,7 @@ import { Feather } from "@expo/vector-icons";
 
 import { T, fontFamilies } from "@/constants/tokens";
 import { useAuth } from "@/context/AuthContext";
-
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? "";
+import { getResolvedExpoPublicApiBase } from "@/lib/resolveExpoPublicApiBase";
 
 function getAppVersionLabel(): string {
   const expoConfigVersion =
@@ -52,7 +51,8 @@ export default function FeedbackScreen() {
   const canSend = message.trim().length >= 5 && !isSending;
 
   const handleSend = async () => {
-    if (!API_BASE_URL) {
+    const apiBase = getResolvedExpoPublicApiBase();
+    if (!apiBase) {
       Alert.alert("Not configured", "The API base URL is not set for this build.");
       return;
     }
@@ -66,7 +66,7 @@ export default function FeedbackScreen() {
     setIsSending(true);
     try {
       const token = await getValidToken();
-      const res = await fetch(`${API_BASE_URL}/feedback`, {
+      const res = await fetch(`${apiBase}/feedback`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

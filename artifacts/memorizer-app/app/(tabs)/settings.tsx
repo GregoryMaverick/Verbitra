@@ -380,7 +380,7 @@ export default function SettingsScreen() {
           />
           <View style={styles.divider} />
           <SettingRow
-            icon="mail"
+            icon="message-circle"
             label="Feedback"
             onPress={handleSendFeedback}
           />

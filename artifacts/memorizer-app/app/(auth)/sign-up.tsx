@@ -23,6 +23,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { T, fontFamilies } from "@/constants/tokens";
 import { useAuth } from "@/lib/auth";
+import { formatAuthScreenError } from "@/lib/formatAuthScreenError";
 
 export default function SignUpScreen() {
   const insets = useSafeAreaInsets();
@@ -52,15 +53,12 @@ export default function SignUpScreen() {
           "Account created. Check your email for a confirmation link, then sign in.",
         );
       } else {
-        // No confirmation required — Supabase already issued a session, so
-        // onAuthStateChange will sign the user in. Just dismiss this screen.
+        // No confirmation required — signUp already hydrated the user via the API.
         if (router.canGoBack()) router.back();
         else router.replace("/(tabs)");
       }
     } catch (err) {
-      setErrorMsg(
-        err instanceof Error ? err.message : "Something went wrong. Try again.",
-      );
+      setErrorMsg(formatAuthScreenError(err));
     } finally {
       setSubmitting(false);
     }

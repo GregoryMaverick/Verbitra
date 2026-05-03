@@ -73,12 +73,9 @@ function getSupabaseProjectRefFromJwt(jwt: string): string | null {
 // `users` table. Returns null if the token is missing, invalid, or expired.
 //
 // We link Supabase users to local users by *email* rather than by Supabase's
-// UUID because:
-//   - The legacy users table already has a unique index on `email`, which means
-//     any pre-existing rows from the Replit OIDC era can be re-attached to a
-//     Supabase identity simply by signing up with the same email address.
-//   - Storing the Supabase UUID in `replit_id` would conflict with rows that
-//     still hold a real Replit subject there.
+// UUID because the legacy `users` table already has a unique constraint on
+// `email`, so the same inbox can be re-attached to a Supabase identity after
+// migration.
 // If you ever need a stricter link (e.g. a user changes their email in
 // Supabase), add a dedicated `supabase_id` column and migrate.
 export async function resolveSupabaseUser(

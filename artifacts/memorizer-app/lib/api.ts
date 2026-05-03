@@ -1,6 +1,7 @@
-const apiBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL;
+import { getResolvedExpoPublicApiBase } from "./resolveExpoPublicApiBase";
 
 function resolveApiBase(): string {
+  const apiBaseUrl = getResolvedExpoPublicApiBase();
   if (apiBaseUrl) return apiBaseUrl;
 
   console.error(

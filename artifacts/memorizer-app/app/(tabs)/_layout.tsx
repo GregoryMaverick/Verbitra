@@ -1,5 +1,5 @@
 import { BlurView } from "expo-blur";
-import { Tabs, router } from "expo-router";
+import { Tabs, router, useSegments } from "expo-router";
 import { Feather, Ionicons } from "@expo/vector-icons";
 import React from "react";
 import {
@@ -8,10 +8,22 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { T } from "@/constants/tokens";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { T, shadows } from "@/constants/tokens";
+
+const TAB_BAR_HEIGHT = Platform.OS === "web" ? 84 : 80;
 
 export default function TabLayout() {
+  const insets = useSafeAreaInsets();
+  const segments = useSegments();
+  const isSettingsTab = segments[segments.length - 1] === "settings";
+  const showFeedbackFab = !isSettingsTab;
+
+  const fabBottom = TAB_BAR_HEIGHT + insets.bottom + 12;
+  const fabRight = 16 + insets.right;
+
   return (
+    <View style={styles.root}>
     <Tabs
       screenOptions={{
         tabBarActiveTintColor: T.primary,
@@ -96,5 +108,38 @@ export default function TabLayout() {
         }}
       />
     </Tabs>
+      {showFeedbackFab ? (
+        <TouchableOpacity
+          style={[
+            styles.feedbackFab,
+            { bottom: fabBottom, right: fabRight },
+            shadows.primary,
+          ]}
+          onPress={() => router.push("/feedback")}
+          accessibilityRole="button"
+          accessibilityLabel="Send feedback"
+          activeOpacity={0.88}
+          testID="tab-feedback-fab"
+        >
+          <Feather name="message-circle" size={24} color="#fff" />
+        </TouchableOpacity>
+      ) : null}
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+  },
+  feedbackFab: {
+    position: "absolute",
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: T.primary,
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 50,
+  },
+});

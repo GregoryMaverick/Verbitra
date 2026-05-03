@@ -84,18 +84,15 @@ export async function runMigrations(): Promise<void> {
   `);
 
   await pool.query(`
-    ALTER TABLE users
-      ADD COLUMN IF NOT EXISTS replit_id VARCHAR;
+    DROP INDEX IF EXISTS users_replit_id_unique;
+    ALTER TABLE users DROP COLUMN IF EXISTS replit_id;
+
     ALTER TABLE users
       ADD COLUMN IF NOT EXISTS first_name VARCHAR;
     ALTER TABLE users
       ADD COLUMN IF NOT EXISTS last_name VARCHAR;
     ALTER TABLE users
       ADD COLUMN IF NOT EXISTS profile_image_url VARCHAR;
-
-    CREATE UNIQUE INDEX IF NOT EXISTS users_replit_id_unique
-      ON users (replit_id)
-      WHERE replit_id IS NOT NULL;
 
     CREATE TABLE IF NOT EXISTS auth_sessions (
       sid     VARCHAR PRIMARY KEY,

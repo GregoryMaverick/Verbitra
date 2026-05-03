@@ -127,18 +127,19 @@ Increment `expo.android.versionCode` in `artifacts/memorizer-app/app.json` for e
 
 Authentication uses **Supabase Auth** (email + password). The mobile app talks
 to Supabase directly via `@supabase/supabase-js`; the API server validates the
-resulting JWT with the Supabase service role key on every request that calls
-`requireAuth`.
+resulting JWT with a **Supabase anon/publishable key** (env: `SUPABASE_AUTH_KEY`,
+same value as the dashboard **anon** key—never the service_role key unless you add
+privileged admin features that require it).
 
 ### Required environment variables
 
-Get all four from the Supabase dashboard → **Project Settings → API**.
+Get all values from the Supabase dashboard → **Project Settings → API**.
 
 API server (`artifacts/api-server/.env`):
 
 ```env
 SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=...   # service_role secret, server-side only
+SUPABASE_AUTH_KEY=...   # anon / publishable key (server-side copy; not the service_role secret)
 ```
 
 Mobile app (`artifacts/memorizer-app/.env.local` for dev, EAS env vars for builds):

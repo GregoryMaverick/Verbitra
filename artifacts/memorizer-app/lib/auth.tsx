@@ -155,7 +155,7 @@ async function fetchLocalUserForSession(accessToken: string): Promise<AuthUser> 
   if (!u) {
     throw new Error(
       "The API returned no user for this token. The app's EXPO_PUBLIC_SUPABASE_* values and the api-server's " +
-        "SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY must refer to the same Supabase project.",
+        "SUPABASE_URL / SUPABASE_AUTH_KEY (anon key) must refer to the same Supabase project.",
     );
   }
   return u;

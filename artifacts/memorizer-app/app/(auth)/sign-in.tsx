@@ -23,6 +23,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { T, fontFamilies } from "@/constants/tokens";
 import { useAuth } from "@/lib/auth";
+import { formatAuthScreenError } from "@/lib/formatAuthScreenError";
 
 export default function SignInScreen() {
   const insets = useSafeAreaInsets();
@@ -37,35 +38,18 @@ export default function SignInScreen() {
 
   const canSubmit = email.trim().length > 0 && password.length > 0 && !submitting;
 
-  function formatAuthError(err: unknown): string {
-    const msg = err instanceof Error ? err.message : String(err);
-    const normalized = msg.toLowerCase();
-
-    // Supabase commonly returns this when the anon key or URL is wrong.
-    // Without this hint, users assume "my email/password is wrong".
-    if (normalized.includes("invalid api key")) {
-      return (
-        "Sign-in is misconfigured (Supabase rejected the API key).\n\n" +
-        "Fix: set the correct EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY for this build " +
-        "(EAS → your project's Environment variables), then rebuild the app."
-      );
-    }
-
-    return msg || "Something went wrong. Try again.";
-  }
-
   const handleSubmit = async () => {
     if (!canSubmit) return;
     setSubmitting(true);
     setErrorMsg(null);
     try {
       await login(email.trim(), password);
-      // On success, AuthProvider's onAuthStateChange will flip isAuthenticated.
-      // We just close the modal/screen so the user lands wherever they were.
+      // `login` waits until `/api/auth/user` succeeds so `isAuthenticated` is true
+      // before we dismiss — avoids landing on Home while Settings still shows signed out.
       if (router.canGoBack()) router.back();
       else router.replace("/(tabs)");
     } catch (err) {
-      setErrorMsg(formatAuthError(err));
+      setErrorMsg(formatAuthScreenError(err));
     } finally {
       setSubmitting(false);
     }
