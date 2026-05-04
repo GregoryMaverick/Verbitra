@@ -21,6 +21,7 @@ import { isMnemonicSuitable } from "@/lib/contentClassifier";
 import { useSubscription } from "@/lib/revenuecat";
 import PaywallModal from "@/components/PaywallModal";
 import { getNextSessionInfo } from "@/lib/nextSession";
+import { streakRequiredForPhase } from "@/lib/streakRequirements";
 
 const FREE_TEXT_LIMIT = 3;
 
@@ -70,7 +71,7 @@ function PhaseStep({ current, total, color, consecutiveGoodSessions, sessionCoun
   sessionCountInPhase: number;
 }) {
   const isMastered = current > total;
-  const streakRequired = current >= 3 ? 3 : 2;
+  const streakRequired = streakRequiredForPhase(current);
 
   if (isMastered) {
     return (

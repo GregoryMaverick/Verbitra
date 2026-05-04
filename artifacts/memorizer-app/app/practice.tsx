@@ -20,6 +20,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { T } from "@/constants/tokens";
 import { useApp } from "@/context/AppContext";
+import { streakRequiredForPhase } from "@/lib/streakRequirements";
 import { useAuth } from "@/context/AuthContext";
 import { Feather } from "@expo/vector-icons";
 import { fetchAcronym, fetchMnemonic, triggerAcronymGeneration, type MnemonicResponse } from "@/lib/api";
@@ -188,18 +189,16 @@ function getSentenceRanges(tokens: WordToken[]): Array<[number, number]> {
 }
 
 const PHASE_THRESHOLD: Record<number, number> = { 1: 60, 2: 80, 3: 95 };
-const STREAK_REQUIRED: Record<number, number> = { 1: 1, 2: 3, 3: 3 };
 
 // Hint chip is offered while the user is still ramping up; once they've hit a
 // streak that proves they can recall unaided we hide the chip and surface a
 // one-time toast so they know it's intentional, not a bug.
 function isHintChipEligible(phase: number, consecutiveGoodSessions: number, activityType?: ActivityType, isTightDeadline?: boolean): boolean {
-  // In tight-deadline mode, typing-memory shows up as session 5 of the tight
-  // ladder while the user may still be on Phase 2 with a high streak. That's
-  // the user's *first* exposure to typing-memory, so treat it like Phase 3
-  // streak 0 and offer the hint chip — otherwise hints flip on/off across
-  // back-to-back typing-memory sessions, which feels like a bug.
-  if (isTightDeadline && activityType === "typing-memory") return true;
+  // In tight-deadline mode, typing-memory can appear on the ladder while phase
+  // is still 2. Offer the chip there regardless of streak (first full recall).
+  // Once phase is 3, use the same streak-0 rule as non-tight mode so "peek"
+  // does not return after the graduation message (streak ≥ 1).
+  if (isTightDeadline && activityType === "typing-memory" && phase <= 2) return true;
   if (phase <= 2) return consecutiveGoodSessions <= 1;
   if (phase === 3) return consecutiveGoodSessions === 0;
   return false;
@@ -812,7 +811,7 @@ export default function PracticeScreen() {
     missedWords: string,
   ) => {
     const threshold = PHASE_THRESHOLD[actualPhase] ?? 80;
-    const streakRequired = STREAK_REQUIRED[actualPhase] ?? 2;
+    const streakRequired = streakRequiredForPhase(actualPhase);
     const passedThreshold = finalScore >= threshold;
 
     const currentStreak = consecutiveGoodSessions;
@@ -982,7 +981,7 @@ export default function PracticeScreen() {
   const handleAcronymGotIt = useCallback(async () => {
     const textId = params.textId;
     const threshold = PHASE_THRESHOLD[actualPhase] ?? 80;
-    const streakRequired = STREAK_REQUIRED[actualPhase] ?? 2;
+    const streakRequired = streakRequiredForPhase(actualPhase);
     const sessionScore = 100;
     const currentStreak = consecutiveGoodSessions;
     const currentSessionCount = sessionCountInPhase;

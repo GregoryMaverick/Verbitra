@@ -12,6 +12,7 @@ import { useAuth } from "./AuthContext";
 import { cancelTextNotifications, cancelAllNotifications, scheduleReviewNotification } from "@/hooks/useNotifications";
 import { scheduleFirstReview as fsrsScheduleFirst, applyRating as fsrsApplyRating, type FsrsRating, type FsrsCardState, type ReviewResult } from "@/lib/fsrs";
 import { API_BASE } from "@/lib/api";
+import { streakRequiredForPhase } from "@/lib/streakRequirements";
 
 const API_BASE_URL = API_BASE;
 if (!API_BASE_URL) {
@@ -883,8 +884,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           // activity rung instead of being demoted back to the first rung.
           const newConsec = passing ? c.consecutiveGoodSessions + 1 : c.consecutiveGoodSessions;
           const newCount = c.sessionCountInPhase + 1;
-          const STREAK_REQ: Record<number, number> = { 1: 1, 2: 3, 3: 3 };
-          const streakReq = STREAK_REQ[c.phase] ?? 2;
+          const streakReq = streakRequiredForPhase(c.phase);
           const shouldAdvance = passing && newConsec >= streakReq && c.phase < 4;
           if (shouldAdvance) didAdvance = true;
           return {
