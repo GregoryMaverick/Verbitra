@@ -2,7 +2,7 @@ import { GoogleGenerativeAI, type GenerativeModel } from "@google/generative-ai"
 
 let _client: GoogleGenerativeAI | null = null;
 
-const DEFAULT_GEMINI_MODEL = "gemini-3.1-flash-lite-preview";
+const DEFAULT_GEMINI_MODEL = "gemini-3.1-flash-lite";
 
 function getDefaultModelName(): string {
   const model = process.env.GEMINI_MODEL;
