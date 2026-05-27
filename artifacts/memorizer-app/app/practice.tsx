@@ -6,6 +6,7 @@ import {
   Animated,
   Easing,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
@@ -157,7 +158,7 @@ function getActivityType(phase: number, sessionCount: number, consecutiveGoodSes
 const ACTIVITY_META: Record<ActivityType, { name: string; desc: string; color: string }> = {
   "guided-typing":        { name: "Guided Typing",        desc: "Function words shown · fill in the rest",          color: T.hint },
   "first-letter":         { name: "First Letter Recall",  desc: "Use the first letter as a cue · type the rest",    color: T.primary },
-  "progressive-deletion": { name: "Progressive Deletion", desc: "Type the missing word in the box & press Return to start · then a new word disappears every 7s",  color: T.hint },
+  "progressive-deletion": { name: "Progressive Deletion", desc: "Fill each blank · confirm with the keyboard", color: T.hint },
   "typing-memory":        { name: "Typing from Memory",   desc: "All words hidden · recall the full text",          color: T.correct },
   "rapid-fire":           { name: "Rapid Fire",           desc: "One sentence at a time · no going back",           color: T.wrong },
   "acronym-builder":      { name: "Acronym Tip",          desc: "AI-generated acronym to anchor the list in memory", color: T.primary },
@@ -212,6 +213,118 @@ function isHintGraduationStreak(phase: number, consecutiveGoodSessions: number):
   return false;
 }
 const HINT_GRAD_STORAGE_KEY = "@verbitra:hint_graduation_shown_v1";
+
+/** Persisted once the user completes a session of each activity — hides the highlighted instruction card next time (Read & Listen is not in /practice). */
+const ACTIVITY_INSTR_DONE_KEY = "@verbitra:practice_activity_instruction_done_v1";
+
+const ACTIVITY_TYPES_WITH_FOCUS_BANNER: ActivityType[] = [
+  "progressive-deletion",
+  "guided-typing",
+  "first-letter",
+  "typing-memory",
+  "rapid-fire",
+  "next-word-quiz",
+  "acronym-builder",
+];
+
+/** Banner + modal copy for Practice activities (excluding read-and-listen on /reading). */
+function buildActivityInstructionDetail(
+  activityType: ActivityType,
+  keyboardSubmitLabel: string,
+  opts: { isFlash: boolean },
+): { lead: string; sub?: string; helpTitle: string; helpParas: string[] } | null {
+  const kbd = keyboardSubmitLabel;
+  switch (activityType) {
+    case "progressive-deletion":
+      return {
+        lead: `Type each missing word in the box, then press ${kbd} to check it.`,
+        sub: "The first blank stays until you answer correctly. After that, another word hides every 7 seconds — keep moving with the passage.",
+        helpTitle: "Progressive Deletion",
+        helpParas: [
+          `Type each missing word in the box under the blank, then press ${kbd} (or your keyboard submit / enter key) to check it.`,
+          "Your first blank does not advance on the timer until you get it right. After that, the exercise hides another word every 7 seconds — read ahead so you are ready for the next gap.",
+        ],
+      };
+    case "guided-typing":
+      return {
+        lead: `Function words stay visible · tap each blank · press ${kbd} after each answer`,
+        sub: "Long-press a blank anytime you need a short hint.",
+        helpTitle: "Guided Typing",
+        helpParas: [
+          "Small connectors (articles, helpers, \"and\"/\"or\", etc.) stay visible so you can focus on recall words.",
+          `Tap into a gap, type the word, press ${kbd} to lock it in. Incorrect answers flip to corrections you can rehearse.`,
+          "Hold your finger on a blank for roughly a second to reveal a peek — use it sparingly to keep difficulty honest.",
+        ],
+      };
+    case "first-letter":
+      return {
+        lead: `The first letter hints at each word · type the full word · press ${kbd}`,
+        helpParas: [
+          `Each cue shows the opening letter; type the full word and press ${kbd} to confirm.`,
+          "Peek is still available from the shortcut below when you genuinely need it.",
+        ],
+        helpTitle: "First Letter Recall",
+      };
+    case "typing-memory":
+      return {
+        lead: `Every recall word starts hidden · reconstruct the passage · press ${kbd} per word`,
+        sub: 'Use Peek below only when you stall — graduating off hints is intentional later on.',
+        helpTitle: "Typing from Memory",
+        helpParas: [
+          `The screen is blank aside from punctuation; rebuild the wording from scratch. Press ${kbd} after filling each gap.`,
+          "When you peek, rehearse aloud before rushing forward.",
+        ],
+      };
+    case "rapid-fire":
+      if (opts.isFlash) {
+        return {
+          lead:
+            "One sentence at a time · finish each gap · Next sentence · 2-minute flash cutoff",
+          sub: "Older sentences lock — glance at the header timer.",
+          helpTitle: "Rapid Fire (Flash)",
+          helpParas: [
+            `Fill the visible sentence, validate with ${kbd}, then tap Next sentence at the bottom when ready.`,
+            "A countdown in the header ends the whole session automatically at 0 — plan ahead.",
+            "You can't scroll back once you advance.",
+          ],
+        };
+      }
+      return {
+        lead: "One sentence at a time · fill every gap before tapping Next sentence",
+        sub: "You can't go back once you advance — check each word.",
+        helpTitle: "Rapid Fire",
+        helpParas: [
+          "Only one sentence appears at once. Solve it entirely, tap Next sentence, repeat until done.",
+          `Press ${kbd} after typing each gap so answers lock before advancing.`,
+          "The recap screen summarizes every sentence afterward.",
+        ],
+      };
+    case "next-word-quiz":
+      return {
+        lead: "Tap the phrase that completes the passage in reading order.",
+        sub: 'Tap Next → after answering. Incorrect choices stay marked so corrections are obvious.',
+        helpTitle: "Next-Word Quiz",
+        helpParas: [
+          "Each prompt pauses mid-sentence — pick whichever option logically continues the wording you memorised.",
+          "Colours show what was wrong vs right immediately; don't rush taps if you misread.",
+          "Skipping is only suggested when generation fails.",
+        ],
+      };
+    case "acronym-builder":
+      return {
+        lead: "We generate a compact acronym plus a short map of how it fits your ordered list.",
+        sub: 'Read carefully now — harder modes lean on remembering this mnemonic.',
+        helpTitle: "Acronym Tip",
+        helpParas: [
+          "Wait for AI to populate YOUR ACRONYM and HOW IT MAPS; each section answers a different question.",
+          "Say the mnemonic out loud twice before progressing — muscle memory anchors faster than skimming silently.",
+          "Tap Got it! when you'd trust yourself to recall without re-opening this card.",
+        ],
+      };
+    default:
+      return null;
+  }
+}
 
 export default function PracticeScreen() {
   const insets = useSafeAreaInsets();
@@ -324,6 +437,10 @@ export default function PracticeScreen() {
   const [pdBlankedIndices, setPdBlankedIndices] = useState<number[]>([]);
   const pdQueueRef = useRef<number[]>([]);
   const pdTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  /** Wall-clock time when the next word will blank; drives 7s progress UI. */
+  const [pdRevealDeadlineMs, setPdRevealDeadlineMs] = useState<number | null>(null);
+  /** Bumps on a 250ms ticker while `pdRevealDeadlineMs` is set so countdown bars re-render. */
+  const [pdUiTick, setPdUiTick] = useState(0);
 
   const [rfSentenceIdx, setRfSentenceIdx] = useState(0);
   const [flashTimeLeft, setFlashTimeLeft] = useState(120);
@@ -342,7 +459,79 @@ export default function PracticeScreen() {
   // Hide the practice UI immediately when finishing so the user doesn't see a
   // flash of the next activity (because state advances before /results mounts).
   const [finishing, setFinishing] = useState(false);
+  const [activityHelpVisible, setActivityHelpVisible] = useState(false);
   const gradToastAnim = useRef(new Animated.Value(0)).current;
+  const pdSubmitKeyLabel = Platform.OS === "web" ? "Enter" : "Return";
+
+  const activityInstructionDetail = useMemo(
+    () => buildActivityInstructionDetail(activityType, pdSubmitKeyLabel, { isFlash }),
+    [activityType, pdSubmitKeyLabel, isFlash],
+  );
+
+  const [instructionDoneHydrated, setInstructionDoneHydrated] = useState(false);
+  const [instructionDoneMap, setInstructionDoneMap] = useState<Partial<Record<ActivityType, boolean>>>({});
+
+  useEffect(() => {
+    let cancelled = false;
+    AsyncStorage.getItem(ACTIVITY_INSTR_DONE_KEY)
+      .then((raw) => {
+        if (cancelled) return;
+        try {
+          setInstructionDoneMap(raw ? (JSON.parse(raw) as Partial<Record<ActivityType, boolean>>) : {});
+        } catch {
+          setInstructionDoneMap({});
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setInstructionDoneMap({});
+      })
+      .finally(() => {
+        if (!cancelled) setInstructionDoneHydrated(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const markActivityInstructionFinished = useCallback(async (act: ActivityType) => {
+    try {
+      const raw = await AsyncStorage.getItem(ACTIVITY_INSTR_DONE_KEY);
+      const next = { ...(raw ? (JSON.parse(raw) as Partial<Record<ActivityType, boolean>>) : {}) };
+      next[act] = true;
+      await AsyncStorage.setItem(ACTIVITY_INSTR_DONE_KEY, JSON.stringify(next));
+      setInstructionDoneMap(next);
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const showsActivityFocusBanner =
+    instructionDoneHydrated &&
+    ACTIVITY_TYPES_WITH_FOCUS_BANNER.includes(activityType) &&
+    !instructionDoneMap[activityType] &&
+    activityInstructionDetail != null &&
+    !(activityType === "acronym-builder" && gate1Locked);
+
+  function renderActivityFocusInstructionBanner() {
+    if (!showsActivityFocusBanner || !activityInstructionDetail) return null;
+    const accent = activityMeta.color;
+    return (
+      <View
+        style={[
+          styles.activityInstructionCard,
+          { borderColor: accent + "44", backgroundColor: accent + "12" },
+        ]}
+      >
+        <Text style={[styles.activityInstructionIcon, { color: accent }]}>ⓘ</Text>
+        <View style={styles.activityInstructionTextCol}>
+          <Text style={styles.activityInstructionLead}>{activityInstructionDetail.lead}</Text>
+          {activityInstructionDetail.sub ? (
+            <Text style={styles.activityInstructionSub}>{activityInstructionDetail.sub}</Text>
+          ) : null}
+        </View>
+      </View>
+    );
+  }
 
   // Fetch Gemini-generated acronym tip when in acronym-builder mode
   useEffect(() => {
@@ -530,6 +719,7 @@ export default function PracticeScreen() {
     return () => {
       if (pdTimerRef.current) clearInterval(pdTimerRef.current);
       pdTimerRef.current = null;
+      setPdRevealDeadlineMs(null);
     };
   }, [activityType, pdContentKey]);
 
@@ -537,11 +727,13 @@ export default function PracticeScreen() {
     if (activityType !== "progressive-deletion") return;
     if (pdTimerRef.current) return;
     if (pdQueueRef.current.length === 0) return;
+    setPdRevealDeadlineMs(Date.now() + 7000);
     pdTimerRef.current = setInterval(() => {
       const nextIndex = pdQueueRef.current.shift();
       if (nextIndex === undefined) {
         if (pdTimerRef.current) clearInterval(pdTimerRef.current);
         pdTimerRef.current = null;
+        setPdRevealDeadlineMs(null);
         return;
       }
       setPdBlankedIndices((prev) => [...prev, nextIndex]);
@@ -550,8 +742,22 @@ export default function PracticeScreen() {
         inputRefs.current[nextIndex]?.focus();
         setActiveIndex(nextIndex);
       }, 150);
+      if (pdQueueRef.current.length === 0) {
+        if (pdTimerRef.current) clearInterval(pdTimerRef.current);
+        pdTimerRef.current = null;
+        setPdRevealDeadlineMs(null);
+      } else {
+        setPdRevealDeadlineMs(Date.now() + 7000);
+      }
     }, 7000);
   }, [activityType]);
+
+  useEffect(() => {
+    if (activityType !== "progressive-deletion") return;
+    if (pdRevealDeadlineMs == null) return;
+    const id = setInterval(() => setPdUiTick((n) => n + 1), 250);
+    return () => clearInterval(id);
+  }, [activityType, pdRevealDeadlineMs]);
 
   const visibleTokens = useMemo(() => {
     if (activityType !== "rapid-fire" || sentenceRanges.length === 0) return allTokens;
@@ -900,6 +1106,8 @@ export default function PracticeScreen() {
       // Storage failure is non-fatal — just skip the toast.
     }
 
+    await markActivityInstructionFinished(activityType);
+
     router.push({
       pathname: "/results",
       params: {
@@ -926,7 +1134,7 @@ export default function PracticeScreen() {
         activityName: activityMeta.name,
       },
     });
-  }, [actualPhase, entry, params.textId, titleText, recordSession, recordChunkSession, updateText, advancePhase, markAsMastered, isReview, isFlash, isFullRun, chunkIndexParam, activeChunk, consecutiveGoodSessions, sessionCountInPhase, activityMeta.name]);
+  }, [actualPhase, entry, params.textId, titleText, recordSession, recordChunkSession, updateText, advancePhase, markAsMastered, isReview, isFlash, isFullRun, chunkIndexParam, activeChunk, consecutiveGoodSessions, sessionCountInPhase, activityMeta.name, activityType, markActivityInstructionFinished]);
 
   const handleFinish = useCallback(async () => {
     if (pdTimerRef.current) {
@@ -1025,6 +1233,8 @@ export default function PracticeScreen() {
       }
     }
 
+    await markActivityInstructionFinished("acronym-builder");
+
     router.push({
       pathname: "/results",
       params: {
@@ -1048,7 +1258,7 @@ export default function PracticeScreen() {
         isFullRun: "false",
       },
     });
-  }, [actualPhase, entry, params.textId, titleText, recordSession, recordChunkSession, updateText, advancePhase, chunkIndexParam, activeChunk, consecutiveGoodSessions, sessionCountInPhase]);
+  }, [actualPhase, entry, params.textId, titleText, recordSession, recordChunkSession, updateText, advancePhase, chunkIndexParam, activeChunk, consecutiveGoodSessions, sessionCountInPhase, markActivityInstructionFinished]);
 
   const handleRfNext = useCallback(() => {
     const currentRange = sentenceRanges[rfSentenceIdx];
@@ -1214,11 +1424,32 @@ export default function PracticeScreen() {
     );
   };
 
-  const showHintBar = activityType !== "progressive-deletion" && activityType !== "rapid-fire" && activityType !== "acronym-builder";
+  const suppressFooterTypingHintBecauseBanner =
+    showsActivityFocusBanner &&
+    (activityType === "guided-typing" ||
+      activityType === "first-letter" ||
+      activityType === "typing-memory");
+
+  const showHintBar =
+    instructionDoneHydrated &&
+    activityType !== "progressive-deletion" &&
+    activityType !== "rapid-fire" &&
+    activityType !== "acronym-builder" &&
+    !suppressFooterTypingHintBecauseBanner;
+
   const pdProgressPct = pdContentIndices.length === 0
     ? 0
     : Math.round((pdBlankedIndices.length / pdContentIndices.length) * 100);
 
+  void pdUiTick;
+
+  const pdCountdownProgress =
+    pdRevealDeadlineMs == null
+      ? null
+      : Math.min(1, Math.max(0, (7000 - Math.max(0, pdRevealDeadlineMs - Date.now())) / 7000));
+
+  const pdCountdownSecsRemaining =
+    pdRevealDeadlineMs == null ? null : Math.max(0, Math.ceil((pdRevealDeadlineMs - Date.now()) / 1000));
 
   if (finishing) {
     return (
@@ -1239,12 +1470,29 @@ export default function PracticeScreen() {
             <View style={[styles.phaseDot, { backgroundColor: phaseMeta.color }]} />
             <Text style={[styles.phaseLabel, { color: phaseMeta.color }]}>{phaseMeta.label}</Text>
           </View>
-          <View style={styles.activityRow}>
-            <View style={[styles.activityDot, { backgroundColor: activityMeta.color }]} />
-            <View>
-              <Text style={[styles.activityName, { color: activityMeta.color }]}>{activityMeta.name}</Text>
-              <Text style={styles.activityDesc}>{activityMeta.desc}</Text>
+          <View style={styles.activityTextCol}>
+            <View style={styles.activityTitleRow}>
+              <View style={[styles.activityDot, { backgroundColor: activityMeta.color }]} />
+              <Text
+                style={[styles.activityName, { color: activityMeta.color }]}
+                numberOfLines={2}
+              >
+                {activityMeta.name}
+              </Text>
+              {activityInstructionDetail &&
+                ACTIVITY_TYPES_WITH_FOCUS_BANNER.includes(activityType) &&
+                !(activityType === "acronym-builder" && gate1Locked) && (
+                <TouchableOpacity
+                  onPress={() => setActivityHelpVisible(true)}
+                  style={styles.activityHelpBtn}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  accessibilityLabel={`${activityMeta.name}: how this exercise works`}
+                >
+                  <Feather name="help-circle" size={20} color={activityMeta.color} />
+                </TouchableOpacity>
+              )}
             </View>
+            <Text style={[styles.activityDesc, styles.activityDescAlignedWithTitle]}>{activityMeta.desc}</Text>
           </View>
         </View>
         <View style={styles.scoreRow}>
@@ -1327,6 +1575,7 @@ export default function PracticeScreen() {
 
         {activityType === "acronym-builder" ? (
           <>
+            {renderActivityFocusInstructionBanner()}
             {gate1Locked ? (
               <TouchableOpacity
                 style={styles.proLockedCard}
@@ -1399,6 +1648,7 @@ export default function PracticeScreen() {
                   <Text style={styles.textCardLabel}>
                     Question {qIdx + 1} of {quizQuestions.length}
                   </Text>
+                  {renderActivityFocusInstructionBanner()}
                   <Text style={styles.quizPrompt}>{q.prompt} ____</Text>
                   <View style={{ gap: 10, marginTop: 16 }}>
                     {q.choices.map((choice, i) => {
@@ -1438,6 +1688,7 @@ export default function PracticeScreen() {
             <Text style={styles.textCardLabel}>
               {titleText}
             </Text>
+            {renderActivityFocusInstructionBanner()}
             <View style={styles.wordsContainer}>
               {visibleTokens.map(renderToken)}
             </View>
@@ -1452,13 +1703,6 @@ export default function PracticeScreen() {
                 ? "First letter shown as a cue · type the full word · Return to confirm"
                 : "Tap to type · Return to confirm · Long-press for a hint"}
             </Text>
-          </View>
-        )}
-
-        {activityType === "progressive-deletion" && (
-          <View style={styles.hintInfo}>
-            <Text style={styles.hintInfoIcon}>⏱</Text>
-            <Text style={styles.hintInfoText}>First word stays until you submit · then a new one appears every 7 seconds</Text>
           </View>
         )}
 
@@ -1523,6 +1767,44 @@ export default function PracticeScreen() {
                   : "Next →"}
             </Text>
           </TouchableOpacity>
+        ) : activityType === "progressive-deletion" ? (
+          <TouchableOpacity
+            style={styles.pdBottomTouchWrap}
+            onPress={(pdAllBlanked || isReview || isFlash) ? handleFinish : undefined}
+            disabled={!pdAllBlanked && !isReview && !isFlash}
+            activeOpacity={0.85}
+            testID="practice-exit-btn"
+            accessibilityHint={
+              pdCountdownProgress != null && pdCountdownSecsRemaining != null
+                ? `Next word hides in ${pdCountdownSecsRemaining} seconds`
+                : undefined
+            }
+          >
+            <View
+              style={[
+                styles.bottomBtn,
+                styles.pdBottomBtnInner,
+                (!pdAllBlanked && !isReview && !isFlash) && styles.bottomBtnDisabled,
+              ]}
+            >
+              {pdCountdownProgress != null ? (
+                <View pointerEvents="none" style={styles.pdBtnCountdownBgClip}>
+                  <View
+                    style={[
+                      styles.pdBtnCountdownBgFill,
+                      {
+                        width: `${pdCountdownProgress * 100}%`,
+                        backgroundColor: `${activityMeta.color}BB`,
+                      },
+                    ]}
+                  />
+                </View>
+              ) : null}
+              <Text style={[styles.bottomBtnText, styles.pdBottomBtnLabel]}>
+                {(isReview || isFlash || pdAllBlanked) ? "Finish" : `${pdWordsRemaining} left`}
+              </Text>
+            </View>
+          </TouchableOpacity>
         ) : (
           <TouchableOpacity
             style={[styles.bottomBtn, (!pdAllBlanked && !isReview && !isFlash) && styles.bottomBtnDisabled]}
@@ -1561,6 +1843,34 @@ export default function PracticeScreen() {
         onDismiss={() => setPaywallVisible(false)}
         reason="gate1"
       />
+
+      <Modal
+        visible={activityHelpVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setActivityHelpVisible(false)}
+      >
+        <View style={styles.activityHelpOverlay}>
+          <View style={styles.activityHelpSheet}>
+            <View style={styles.activityHelpHeader}>
+              <Text style={styles.activityHelpTitle}>
+                {activityInstructionDetail?.helpTitle ?? "How this works"}
+              </Text>
+              <TouchableOpacity onPress={() => setActivityHelpVisible(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                <Feather name="x" size={22} color={T.secondary} />
+              </TouchableOpacity>
+            </View>
+            {(activityInstructionDetail?.helpParas ?? []).map((para, idx) => (
+              <Text key={idx} style={styles.activityHelpPara}>
+                {para}
+              </Text>
+            ))}
+            <TouchableOpacity style={styles.activityHelpDismiss} onPress={() => setActivityHelpVisible(false)} activeOpacity={0.88}>
+              <Text style={styles.activityHelpDismissText}>Got it</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -1588,10 +1898,31 @@ const styles = StyleSheet.create({
   },
   phaseDot: { width: 5, height: 5, borderRadius: 3 },
   phaseLabel: { fontSize: 11, fontWeight: "700" as const, letterSpacing: 0.5 },
-  activityRow: { flexDirection: "row", alignItems: "flex-start", gap: 6, paddingLeft: 2 },
-  activityDot: { width: 5, height: 5, borderRadius: 3, marginTop: 5 },
-  activityName: { fontSize: 14, fontWeight: "700" as const, letterSpacing: 0.1 },
-  activityDesc: { fontSize: 11, color: T.secondary, marginTop: 2 },
+  activityTextCol: { flex: 1, minWidth: 0, paddingLeft: 2 },
+  activityTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    gap: 6,
+    maxWidth: "100%",
+  },
+  activityHelpBtn: {
+    flexShrink: 0,
+    padding: 2,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  activityDot: { width: 5, height: 5, borderRadius: 3 },
+  activityName: {
+    flexGrow: 0,
+    flexShrink: 1,
+    fontSize: 14,
+    fontWeight: "700" as const,
+    letterSpacing: 0.1,
+    lineHeight: 20,
+  },
+  activityDesc: { fontSize: 12, color: T.secondary, marginTop: 3, fontWeight: "500" as const, lineHeight: 17 },
+  activityDescAlignedWithTitle: { marginLeft: 11 },
   scoreRow: { flexDirection: "row", alignItems: "center", gap: 12 },
   scoreBox: { alignItems: "flex-end" },
   scoreText: { fontSize: 18, fontWeight: "700" as const, color: T.text, letterSpacing: -0.3, lineHeight: 20 },
@@ -1634,6 +1965,48 @@ const styles = StyleSheet.create({
   pdStatusDot: { width: 6, height: 6, borderRadius: 3 },
   pdStatusText: { fontSize: 11, color: T.secondary, flex: 1 },
   pdStatusPct: { fontSize: 11, fontWeight: "700" as const },
+  activityInstructionCard: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    borderRadius: 10,
+    padding: 14,
+    marginBottom: 14,
+    marginTop: -6,
+  },
+  activityInstructionIcon: { fontSize: 14, lineHeight: 20 },
+  activityInstructionTextCol: { flex: 1, minWidth: 0 },
+  activityInstructionLead: { fontSize: 14, color: T.text, fontWeight: "600" as const, lineHeight: 21 },
+  activityInstructionSub: { fontSize: 13, color: T.secondary, lineHeight: 19, marginTop: 8 },
+  activityHelpOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(5, 5, 8, 0.6)",
+    justifyContent: "center",
+    paddingHorizontal: 22,
+  },
+  activityHelpSheet: {
+    backgroundColor: T.surface,
+    borderRadius: 16,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: T.border,
+  },
+  activityHelpHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 14,
+  },
+  activityHelpTitle: { fontSize: 18, fontWeight: "700" as const, color: T.text, flex: 1, paddingRight: 12 },
+  activityHelpPara: { fontSize: 14, color: T.secondary, lineHeight: 22, marginBottom: 12 },
+  activityHelpDismiss: {
+    marginTop: 4,
+    backgroundColor: T.primary,
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: "center",
+  },
+  activityHelpDismissText: { color: "#fff", fontSize: 16, fontWeight: "700" as const },
   scroll: { flex: 1 },
   scrollContent: { padding: 16, gap: 10, paddingBottom: 40 },
   textCard: {
@@ -1766,6 +2139,25 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: T.border,
     backgroundColor: T.bg,
+  },
+  pdBottomTouchWrap: {
+    alignSelf: "stretch",
+  },
+  pdBottomBtnInner: {
+    overflow: "hidden",
+    position: "relative",
+  },
+  pdBtnCountdownBgClip: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  pdBtnCountdownBgFill: {
+    position: "absolute",
+    left: 0,
+    top: 0,
+    bottom: 0,
+  },
+  pdBottomBtnLabel: {
+    zIndex: 1,
   },
   bottomBtn: {
     backgroundColor: T.primary,
