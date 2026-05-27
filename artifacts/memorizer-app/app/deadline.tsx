@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import {
   Platform,
   ScrollView,
+  StatusBar,
   StyleSheet,
   Switch,
   Text,
@@ -124,7 +125,9 @@ export default function DeadlineScreen() {
   const { isSubscribed } = useSubscription();
   const gate1Locked = !isSubscribed && sessions.length >= GATE1_SESSION_THRESHOLD;
   const [paywallVisible, setPaywallVisible] = useState(false);
-  const topPad = Platform.OS === "web" ? 67 : insets.top;
+  const statusBarTop = Platform.OS === "android" ? (StatusBar.currentHeight ?? 0) : 0;
+  const safeTop = Platform.OS === "web" ? 67 : Math.max(insets.top, statusBarTop);
+  const topPad = safeTop + 8;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
 
   const effectiveTitle = pendingTitle.trim() || pendingText.trim().slice(0, 40) || "Untitled";

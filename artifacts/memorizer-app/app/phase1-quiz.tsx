@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Platform,
   ScrollView,
+  StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -23,7 +24,9 @@ export default function Phase1QuizScreen() {
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ textId: string; textTitle?: string; chunkIndex?: string }>();
   const { texts, recordSession, advanceChunkPhase, updateText } = useApp();
-  const topPad = Platform.OS === "web" ? 67 : insets.top;
+  const statusBarTop = Platform.OS === "android" ? (StatusBar.currentHeight ?? 0) : 0;
+  const safeTop = Platform.OS === "web" ? 67 : Math.max(insets.top, statusBarTop);
+  const topPad = safeTop + 8;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
 
   const textId = params.textId ?? "";

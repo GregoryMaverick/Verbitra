@@ -6,6 +6,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  StatusBar,
   StyleSheet,
   Switch,
   Text,
@@ -81,7 +82,9 @@ export default function InputScreen() {
     });
   };
 
-  const topPad = Platform.OS === "web" ? 67 : insets.top;
+  const statusBarTop = Platform.OS === "android" ? (StatusBar.currentHeight ?? 0) : 0;
+  const safeTop = Platform.OS === "web" ? 67 : Math.max(insets.top, statusBarTop);
+  const topPad = safeTop + 8;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
 
   useEffect(() => {

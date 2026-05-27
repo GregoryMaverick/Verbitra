@@ -5,6 +5,7 @@ import {
   ActivityIndicator,
   Platform,
   ScrollView,
+  StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -26,7 +27,9 @@ export default function MnemonicScreen() {
   const { pendingText, texts } = useApp();
   const { getValidToken } = useAuth();
   useHardAuthGate();
-  const topPad = Platform.OS === "web" ? 67 : insets.top;
+  const statusBarTop = Platform.OS === "android" ? (StatusBar.currentHeight ?? 0) : 0;
+  const safeTop = Platform.OS === "web" ? 67 : Math.max(insets.top, statusBarTop);
+  const topPad = safeTop + 8;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
 
   const textId = params.textId ?? "";

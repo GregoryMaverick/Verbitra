@@ -9,6 +9,7 @@ import {
   Modal,
   Platform,
   ScrollView,
+  StatusBar,
   StyleSheet,
   Text,
   TextInput,
@@ -339,7 +340,9 @@ export default function PracticeScreen() {
   const { isSubscribed } = useSubscription();
   const [paywallVisible, setPaywallVisible] = useState(false);
   const gate1Locked = !isSubscribed && sessions.length >= GATE1_SESSION_THRESHOLD;
-  const topPad = Platform.OS === "web" ? 67 : insets.top;
+  const statusBarTop = Platform.OS === "android" ? (StatusBar.currentHeight ?? 0) : 0;
+  const safeTop = Platform.OS === "web" ? 67 : Math.max(insets.top, statusBarTop);
+  const topPad = safeTop + 8;
 
   const entry = useMemo(() => {
     const tid = params.textId;

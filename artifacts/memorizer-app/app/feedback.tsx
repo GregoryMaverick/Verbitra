@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   Platform,
+  StatusBar,
   StyleSheet,
   Text,
   TextInput,
@@ -103,7 +104,9 @@ export default function FeedbackScreen() {
     }
   };
 
-  const topPad = Platform.OS === "web" ? 67 : insets.top;
+  const statusBarTop = Platform.OS === "android" ? (StatusBar.currentHeight ?? 0) : 0;
+  const safeTop = Platform.OS === "web" ? 67 : Math.max(insets.top, statusBarTop);
+  const topPad = safeTop + 8;
 
   return (
     <View style={[styles.container, { paddingTop: topPad, paddingBottom: insets.bottom + 18 }]}>

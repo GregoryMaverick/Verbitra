@@ -6,6 +6,7 @@ import {
   Alert,
   Platform,
   ScrollView,
+  StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -386,7 +387,9 @@ export default function HomeScreen() {
   const [showNotifPrompt, setShowNotifPrompt] = useState(false);
   const [showTextLimitPaywall, setShowTextLimitPaywall] = useState(false);
 
-  const topPad = Platform.OS === "web" ? 67 : insets.top;
+  const statusBarTop = Platform.OS === "android" ? (StatusBar.currentHeight ?? 0) : 0;
+  const safeTop = Platform.OS === "web" ? 67 : Math.max(insets.top, statusBarTop);
+  const topPad = safeTop + 8;
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);

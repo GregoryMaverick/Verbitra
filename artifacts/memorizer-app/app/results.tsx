@@ -5,6 +5,7 @@ import {
   Modal,
   Platform,
   ScrollView,
+  StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -45,7 +46,9 @@ function getNextPhaseLabel(phase: number): string {
 
 export default function ResultsScreen() {
   const insets = useSafeAreaInsets();
-  const topPad = Platform.OS === "web" ? 67 : insets.top;
+  const statusBarTop = Platform.OS === "android" ? (StatusBar.currentHeight ?? 0) : 0;
+  const safeTop = Platform.OS === "web" ? 67 : Math.max(insets.top, statusBarTop);
+  const topPad = safeTop + 8;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
   const {
     textId,

@@ -8,6 +8,7 @@ import {
   Modal,
   Platform,
   ScrollView,
+  StatusBar,
   StyleSheet,
   Switch,
   Text,
@@ -167,7 +168,9 @@ export default function SettingsScreen() {
   const { isSyncing, notificationSettings, setNotificationSettings } = useApp();
   const { isSubscribed } = useSubscription();
   const [paywallVisible, setPaywallVisible] = useState(false);
-  const topPad = Platform.OS === "web" ? 67 : insets.top;
+  const statusBarTop = Platform.OS === "android" ? (StatusBar.currentHeight ?? 0) : 0;
+  const safeTop = Platform.OS === "web" ? 67 : Math.max(insets.top, statusBarTop);
+  const topPad = safeTop + 8;
   const [timePickerVisible, setTimePickerVisible] = useState(false);
 
   const PRIVACY_URL = "https://verbitra-landing.onrender.com/privacy.html";
