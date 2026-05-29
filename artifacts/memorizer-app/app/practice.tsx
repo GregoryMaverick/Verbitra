@@ -19,7 +19,7 @@ import {
   Vibration,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { T } from "@/constants/tokens";
 import { useApp } from "@/context/AppContext";
 import { streakRequiredForPhase } from "@/lib/streakRequirements";
@@ -342,7 +342,9 @@ export default function PracticeScreen() {
   const gate1Locked = !isSubscribed && sessions.length >= GATE1_SESSION_THRESHOLD;
   const statusBarTop = Platform.OS === "android" ? (StatusBar.currentHeight ?? 0) : 0;
   const safeTop = Platform.OS === "web" ? 67 : Math.max(insets.top, statusBarTop);
-  const topPad = safeTop + 8;
+  // Some Android edge-to-edge setups report 0 for both values. We still want
+  // a comfortable top margin so the header doesn't feel jammed into the status bar.
+  const topPad = Platform.OS === "web" ? 67 : Math.max(48, safeTop + 24);
 
   const entry = useMemo(() => {
     const tid = params.textId;
@@ -1456,14 +1458,17 @@ export default function PracticeScreen() {
 
   if (finishing) {
     return (
-      <View style={[styles.container, { paddingTop: topPad, justifyContent: "center", alignItems: "center" }]}>
-        <ActivityIndicator size="large" color={T.primary} />
-      </View>
+      <SafeAreaView edges={["top"]} style={styles.container}>
+        <View style={{ flex: 1, paddingTop: topPad, justifyContent: "center", alignItems: "center" }}>
+          <ActivityIndicator size="large" color={T.primary} />
+        </View>
+      </SafeAreaView>
     );
   }
 
   return (
-    <View style={[styles.container, { paddingTop: topPad }]}>
+    <SafeAreaView edges={["top"]} style={styles.container}>
+      <View style={{ flex: 1, paddingTop: topPad }}>
       <View style={styles.topBar}>
         <TouchableOpacity onPress={handleBackPress} style={styles.backBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
           <Feather name="arrow-left" size={18} color={T.secondary} />
@@ -1832,7 +1837,7 @@ export default function PracticeScreen() {
             {
               opacity: gradToastAnim,
               transform: [{ translateY: gradToastAnim.interpolate({ inputRange: [0, 1], outputRange: [-12, 0] }) }],
-              top: insets.top + 12,
+              top: 12,
             },
           ]}
         >
@@ -1874,7 +1879,8 @@ export default function PracticeScreen() {
           </View>
         </View>
       </Modal>
-    </View>
+      </View>
+    </SafeAreaView>
   );
 }
 
@@ -1885,10 +1891,14 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
     justifyContent: "space-between",
     paddingHorizontal: 20,
+    paddingRight: 92,
+    paddingTop: 6,
     paddingBottom: 8,
+    gap: 16,
+    position: "relative",
   },
-  topLeft: { flexDirection: "column", gap: 4, flex: 1 },
-  backBtn: { padding: 4, marginTop: 2, marginRight: 4 },
+  topLeft: { flexDirection: "column", gap: 4, flex: 1, minWidth: 0 },
+  backBtn: { padding: 4, marginRight: 4 },
   phaseBadge: {
     flexDirection: "row",
     alignItems: "center",
@@ -1901,13 +1911,12 @@ const styles = StyleSheet.create({
   },
   phaseDot: { width: 5, height: 5, borderRadius: 3 },
   phaseLabel: { fontSize: 11, fontWeight: "700" as const, letterSpacing: 0.5 },
-  activityTextCol: { flex: 1, minWidth: 0, paddingLeft: 2 },
+  activityTextCol: { alignSelf: "stretch", minWidth: 0, paddingLeft: 2 },
   activityTitleRow: {
     flexDirection: "row",
     alignItems: "center",
-    alignSelf: "flex-start",
+    alignSelf: "stretch",
     gap: 6,
-    maxWidth: "100%",
   },
   activityHelpBtn: {
     flexShrink: 0,
@@ -1915,10 +1924,11 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  activityDot: { width: 5, height: 5, borderRadius: 3 },
+  activityDot: { width: 5, height: 5, borderRadius: 3, flexShrink: 0 },
   activityName: {
-    flexGrow: 0,
+    flexGrow: 1,
     flexShrink: 1,
+    minWidth: 0,
     fontSize: 14,
     fontWeight: "700" as const,
     letterSpacing: 0.1,
@@ -1926,7 +1936,7 @@ const styles = StyleSheet.create({
   },
   activityDesc: { fontSize: 12, color: T.secondary, marginTop: 3, fontWeight: "500" as const, lineHeight: 17 },
   activityDescAlignedWithTitle: { marginLeft: 11 },
-  scoreRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+  scoreRow: { position: "absolute", top: 6, right: 20, flexDirection: "row", alignItems: "center", gap: 12 },
   scoreBox: { alignItems: "flex-end" },
   scoreText: { fontSize: 18, fontWeight: "700" as const, color: T.text, letterSpacing: -0.3, lineHeight: 20 },
   scoreSubText: { fontSize: 10, color: T.tertiary },

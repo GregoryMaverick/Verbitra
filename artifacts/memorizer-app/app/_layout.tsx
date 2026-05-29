@@ -19,7 +19,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import * as Notifications from "expo-notifications";
-import { Platform } from "react-native";
+import { LogBox, Platform } from "react-native";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AuthProvider } from "@/lib/auth";
@@ -154,6 +154,13 @@ export default function RootLayout() {
       SplashScreen.hideAsync();
     }
   }, [fontsLoaded, fontError]);
+
+  useEffect(() => {
+    if (!__DEV__) return;
+    // Expo sometimes throws a dev-only promise rejection for keep-awake on
+    // certain emulator/device states. It's not user-facing and shouldn't block testing.
+    LogBox.ignoreLogs(["Unable to activate keep awake"]);
+  }, []);
 
   if (!fontsLoaded && !fontError) return null;
 
