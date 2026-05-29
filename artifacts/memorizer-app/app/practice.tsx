@@ -342,9 +342,8 @@ export default function PracticeScreen() {
   const gate1Locked = !isSubscribed && sessions.length >= GATE1_SESSION_THRESHOLD;
   const statusBarTop = Platform.OS === "android" ? (StatusBar.currentHeight ?? 0) : 0;
   const safeTop = Platform.OS === "web" ? 67 : Math.max(insets.top, statusBarTop);
-  // Some Android edge-to-edge setups report 0 for both values. We still want
-  // a comfortable top margin so the header doesn't feel jammed into the status bar.
-  const topPad = Platform.OS === "web" ? 67 : Math.max(48, safeTop + 24);
+  // Add a small pad underneath the safe area to match iOS default feel
+  const topPad = Platform.OS === "web" ? 67 : safeTop + 8;
 
   const entry = useMemo(() => {
     const tid = params.textId;
@@ -1458,17 +1457,15 @@ export default function PracticeScreen() {
 
   if (finishing) {
     return (
-      <SafeAreaView edges={["top"]} style={styles.container}>
-        <View style={{ flex: 1, paddingTop: topPad, justifyContent: "center", alignItems: "center" }}>
-          <ActivityIndicator size="large" color={T.primary} />
-        </View>
-      </SafeAreaView>
+      <View style={[styles.container, { paddingTop: topPad, justifyContent: "center", alignItems: "center" }]}>
+        <ActivityIndicator size="large" color={T.primary} />
+      </View>
     );
   }
 
   return (
-    <SafeAreaView edges={["top"]} style={styles.container}>
-      <View style={{ flex: 1, paddingTop: topPad }}>
+    <View style={[styles.container, { paddingTop: topPad }]}>
+      <View style={{ flex: 1 }}>
       <View style={styles.topBar}>
         <TouchableOpacity onPress={handleBackPress} style={styles.backBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
           <Feather name="arrow-left" size={18} color={T.secondary} />
@@ -1880,7 +1877,7 @@ export default function PracticeScreen() {
         </View>
       </Modal>
       </View>
-    </SafeAreaView>
+    </View>
   );
 }
 
