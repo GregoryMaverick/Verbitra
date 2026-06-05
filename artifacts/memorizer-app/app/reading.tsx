@@ -15,7 +15,7 @@ import { T } from "@/constants/tokens";
 import { useApp } from "@/context/AppContext";
 import { useAuth } from "@/context/AuthContext";
 import { fetchMnemonic, type MnemonicResponse } from "@/lib/api";
-import { isMnemonicSuitable } from "@/lib/contentClassifier";
+import { isMnemonicGenerationEnabled } from "@/lib/contentClassifier";
 import { MnemonicScaffoldCard } from "@/components/MnemonicScaffoldCard";
 import { useHardAuthGate } from "@/hooks/useHardAuthGate";
 
@@ -50,7 +50,7 @@ export default function ReadingScreen() {
   }, [chunkIndexParam, activeChunk]);
 
   useEffect(() => {
-    if (!textId || textId === "demo" || !isMnemonicSuitable(contentType)) return;
+    if (!textId || textId === "demo" || !isMnemonicGenerationEnabled(contentType)) return;
     let cancelled = false;
     getValidToken()
       .then((token) => fetchMnemonic(textId, token))

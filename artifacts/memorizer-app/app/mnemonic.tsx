@@ -14,9 +14,18 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { T, fontFamilies } from "@/constants/tokens";
 import { fetchMnemonic, triggerMnemonicGeneration, type MnemonicResponse } from "@/lib/api";
+import {
+  MNEMONIC_ERROR_TITLE,
+  formatMnemonicFetchError,
+  formatMnemonicGenericError,
+  formatMnemonicNotFoundError,
+  formatMnemonicServerError,
+  formatMnemonicTimeoutError,
+} from "@/lib/formatMnemonicError";
 import { useApp } from "@/context/AppContext";
 import { useAuth } from "@/context/AuthContext";
 import { useHardAuthGate } from "@/hooks/useHardAuthGate";
+import { isMnemonicGenerationEnabled, type ContentType } from "@/lib/contentClassifier";
 
 const POLL_INTERVAL_MS = 2000;
 const MAX_POLLS = 30;
@@ -45,8 +54,9 @@ export default function MnemonicScreen() {
 
   const poll = async (token: string | null) => {
     if (!textId) {
+      console.warn("[Verbitra] Mnemonic screen opened without textId");
       setStatus("error");
-      setErrorMsg("No text ID provided.");
+      setErrorMsg(formatMnemonicGenericError());
       return;
     }
 
@@ -56,50 +66,45 @@ export default function MnemonicScreen() {
         setMnemonic(result);
         setStatus("ready");
       } else if (result.status === "error") {
+        if (result.errorMessage) {
+          console.warn("[Verbitra] Mnemonic generation failed:", result.errorMessage);
+        }
         setStatus("error");
-        setErrorMsg(result.errorMessage ?? "Generation failed.");
+        setErrorMsg(formatMnemonicServerError());
       } else {
         pollCount.current += 1;
         if (pollCount.current >= MAX_POLLS) {
           setStatus("error");
-          setErrorMsg("Generation timed out. Please try again.");
+          setErrorMsg(formatMnemonicTimeoutError());
           return;
         }
         pollTimer.current = setTimeout(() => poll(token), POLL_INTERVAL_MS);
       }
     } catch (err) {
       const msg = (err as Error).message ?? "";
-      if (msg.includes("API base URL not configured")) {
-        setStatus("error");
-        setErrorMsg(msg);
-        return;
-      }
       if (msg.includes("404") || msg.includes("not found")) {
-        // No mnemonic yet — try to generate one from stored text if available.
+        // No mnemonic yet — generate only for gated content types with stored text.
         const storedEntry = texts.find((t) => t.id === textId);
         const storedContent = storedEntry?.content;
-        if (storedContent) {
-          // Fire-and-forget generation, then keep polling for the result.
+        const storedContentType = (storedEntry?.contentType ?? "passage") as ContentType;
+        if (storedContent && isMnemonicGenerationEnabled(storedContentType)) {
           triggerMnemonicGeneration(textId, storedContent, 0, token).catch(() => {});
           pollCount.current += 1;
           if (pollCount.current >= MAX_POLLS) {
             setStatus("error");
-            setErrorMsg("Generation timed out. Tap retry to try again.");
+            setErrorMsg(formatMnemonicTimeoutError());
             return;
           }
           pollTimer.current = setTimeout(() => poll(token), POLL_INTERVAL_MS);
         } else {
           setStatus("error");
-          setErrorMsg("No memory device found for this text.");
+          setErrorMsg(formatMnemonicNotFoundError());
         }
         return;
-      } else if (msg.includes("401") || msg.includes("Unauthorized") || msg.includes("403") || msg.includes("Forbidden")) {
-        setStatus("error");
-        setErrorMsg("Session expired. Please go back and try again.");
-      } else {
-        setStatus("error");
-        setErrorMsg("Server unreachable. Check your connection and tap retry.");
       }
+
+      setStatus("error");
+      setErrorMsg(formatMnemonicFetchError(err));
     }
   };
 
@@ -118,14 +123,17 @@ export default function MnemonicScreen() {
     setStatus("loading");
     setErrorMsg(null);
     pollCount.current = 0;
+    const entry = texts.find((t) => t.id === textId);
+    const entryContentType = (entry?.contentType ?? "passage") as ContentType;
+    const canGenerate = Boolean(pendingText && textId && isMnemonicGenerationEnabled(entryContentType));
     getValidToken().then((token) => {
-      if (pendingText && textId) {
-        triggerMnemonicGeneration(textId, pendingText, daysLeft, token).catch(() => {});
+      if (canGenerate) {
+        triggerMnemonicGeneration(textId, pendingText!, daysLeft, token).catch(() => {});
       }
       setTimeout(() => poll(token), 1000);
     }).catch(() => {
-      if (pendingText && textId) {
-        triggerMnemonicGeneration(textId, pendingText, daysLeft, null).catch(() => {});
+      if (canGenerate) {
+        triggerMnemonicGeneration(textId, pendingText!, daysLeft, null).catch(() => {});
       }
       setTimeout(() => poll(null), 1000);
     });
@@ -235,8 +243,8 @@ export default function MnemonicScreen() {
   const renderError = () => (
     <View style={styles.errorCard}>
       <Feather name="alert-circle" size={28} color={T.wrong} style={{ marginBottom: 12 }} />
-      <Text style={styles.errorTitle}>Mnemonic unavailable</Text>
-      <Text style={styles.errorBody}>{errorMsg ?? "Something went wrong."}</Text>
+      <Text style={styles.errorTitle}>{MNEMONIC_ERROR_TITLE}</Text>
+      <Text style={styles.errorBody}>{errorMsg ?? formatMnemonicGenericError()}</Text>
       <TouchableOpacity style={styles.retryBtn} onPress={handleRetry} testID="mnemonic-retry-btn">
         <Feather name="refresh-cw" size={14} color={T.primary} />
         <Text style={styles.retryBtnText}>Tap to retry</Text>

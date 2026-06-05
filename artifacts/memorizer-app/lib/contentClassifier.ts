@@ -93,6 +93,16 @@ export function isMnemonicSuitable(contentType: ContentType): boolean {
   );
 }
 
+/**
+ * Product gate: content types we currently generate and surface mnemonics for.
+ * Lists only for now — expand when passage/definition prompt quality is validated.
+ */
+export const MNEMONIC_GENERATION_ENABLED_TYPES: ContentType[] = ["ordered-list"];
+
+export function isMnemonicGenerationEnabled(contentType: ContentType): boolean {
+  return MNEMONIC_GENERATION_ENABLED_TYPES.includes(contentType);
+}
+
 export const CONTENT_TYPE_LABELS: Record<ContentType, { label: string; icon: string; color: string }> = {
   "ordered-list": { label: "List",       icon: "list",           color: "#818CF8" },
   "definition":   { label: "Definitions", icon: "layers",        color: "#C084FC" },

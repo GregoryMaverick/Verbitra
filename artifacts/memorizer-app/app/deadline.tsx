@@ -23,7 +23,7 @@ import {
   ALL_CONTENT_TYPES,
   CONTENT_TYPE_LABELS,
   classifyContent,
-  isMnemonicSuitable,
+  isMnemonicGenerationEnabled,
   type ContentType,
 } from "@/lib/contentClassifier";
 import { getModeForDays as getStudyMode, type ChunkEntry } from "@/context/AppContext";
@@ -240,7 +240,7 @@ export default function DeadlineScreen() {
     }
 
     const title = effectiveTitle;
-    const isMnemonicMode = daysAway !== null && daysAway <= 3 && isMnemonicSuitable(effectiveContentType);
+    const isMnemonicMode = daysAway !== null && daysAway <= 3 && isMnemonicGenerationEnabled(effectiveContentType);
 
     const effectiveCharName = justMyLines && myCharacterName.trim() ? myCharacterName.trim() : null;
 
@@ -291,13 +291,12 @@ export default function DeadlineScreen() {
       triggerAcronymGeneration(entry.id, pendingText, token).catch(() => {});
     }
 
-    // Short deadlines (≤ 7 days): generate mnemonic scaffold for all suitable types.
-    // Long deadlines (> 7 days): lists get an acronym (already triggered above) which is
-    // the primary scaffold — skip generating a full mnemonic for passages/definitions.
+    // Mnemonic generation is gated to ordered-list for now (see MNEMONIC_GENERATION_ENABLED_TYPES).
+    // Long deadlines (> 7 days): acronym is the primary list scaffold — full mnemonic still runs for lists.
     const isLongDeadline = (daysAway ?? 0) > 7;
     const shouldGenerateMnemonic =
       !gate1Locked &&
-      isMnemonicSuitable(effectiveContentType) &&
+      isMnemonicGenerationEnabled(effectiveContentType) &&
       pendingText &&
       (!isLongDeadline || effectiveContentType === "ordered-list");
 

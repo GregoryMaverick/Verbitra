@@ -1,8 +1,9 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { mnemonics } from "@workspace/db";
+import { mnemonics, textsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { optionalAuth } from "../middlewares/auth";
+import { isMnemonicGenerationEnabled } from "../lib/contentClassifier";
 import { generateText } from "../lib/gemini";
 import { logger } from "../lib/logger";
 
@@ -107,6 +108,22 @@ router.post("/", async (req, res) => {
 
   if (!content || typeof content !== "string" || content.trim().length === 0) {
     res.status(400).json({ error: "content is required" });
+    return;
+  }
+
+  const [textRow] = await db
+    .select({ id: textsTable.id, contentType: textsTable.contentType })
+    .from(textsTable)
+    .where(eq(textsTable.id, textId))
+    .limit(1);
+
+  if (!textRow) {
+    res.status(404).json({ error: "Text not found" });
+    return;
+  }
+
+  if (!isMnemonicGenerationEnabled(textRow.contentType)) {
+    res.status(400).json({ error: "Mnemonic generation is only available for ordered-list texts" });
     return;
   }
 

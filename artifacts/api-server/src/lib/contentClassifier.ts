@@ -63,3 +63,10 @@ export function classifyContent(text: string): ContentType {
 
   return "passage";
 }
+
+/** Product gate: content types the API will generate mnemonics for (lists only for now). */
+export const MNEMONIC_GENERATION_ENABLED_TYPES = ["ordered-list"] as const;
+
+export function isMnemonicGenerationEnabled(contentType: string): boolean {
+  return (MNEMONIC_GENERATION_ENABLED_TYPES as readonly string[]).includes(contentType);
+}

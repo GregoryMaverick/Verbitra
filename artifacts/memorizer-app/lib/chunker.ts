@@ -1,4 +1,4 @@
-const MAX_WORDS = 100;
+const MAX_WORDS = 50;
 const MIN_WORDS = 15;
 const MAX_CHUNKS = 10;
 

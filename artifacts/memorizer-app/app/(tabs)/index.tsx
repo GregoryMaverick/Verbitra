@@ -18,7 +18,7 @@ import { T, fontFamilies } from "@/constants/tokens";
 import { useApp, TextEntry, ContentType, ChunkEntry } from "@/context/AppContext";
 import { useAuth } from "@/lib/auth";
 import { NotificationPermissionPrompt } from "@/components/NotificationPermissionPrompt";
-import { isMnemonicSuitable } from "@/lib/contentClassifier";
+import { isMnemonicGenerationEnabled } from "@/lib/contentClassifier";
 import { useSubscription } from "@/lib/revenuecat";
 import PaywallModal from "@/components/PaywallModal";
 import { getNextSessionInfo } from "@/lib/nextSession";
@@ -189,7 +189,7 @@ function TextCard({ item, onPress, onLongPress, onDelete, isNew, sessionsToday }
             <Text style={styles.contentTypeBadgeText}>{ctMeta.label}</Text>
           </View>
         )}
-        {isMnemonicSuitable(contentType) && item.phase >= 2 && (
+        {isMnemonicGenerationEnabled(contentType) && item.phase >= 2 && (
           <TouchableOpacity
             onPress={(e) => {
               // Prevent the parent card tap (open text) from firing.

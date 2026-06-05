@@ -37,7 +37,7 @@ function deriveTitle(text: string): string {
   return first.length > 40 ? first.slice(0, 40) : first;
 }
 
-const CHUNK_THRESHOLD = 100;
+const CHUNK_THRESHOLD = 50;
 
 export default function InputScreen() {
   const insets = useSafeAreaInsets();

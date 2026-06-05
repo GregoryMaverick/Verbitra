@@ -26,7 +26,16 @@ import { streakRequiredForPhase } from "@/lib/streakRequirements";
 import { useAuth } from "@/context/AuthContext";
 import { Feather } from "@expo/vector-icons";
 import { fetchAcronym, fetchMnemonic, triggerAcronymGeneration, type MnemonicResponse } from "@/lib/api";
-import { isMnemonicSuitable } from "@/lib/contentClassifier";
+import { isMnemonicGenerationEnabled } from "@/lib/contentClassifier";
+import {
+  ACRONYM_ERROR_TITLE,
+  formatAcronymFetchError,
+  formatAcronymGenericError,
+  formatAcronymServerError,
+  formatAcronymSessionError,
+  formatAcronymSkipHint,
+  formatAcronymTimeoutError,
+} from "@/lib/formatAcronymError";
 import { MnemonicScaffoldCard } from "@/components/MnemonicScaffoldCard";
 import { useSubscription } from "@/lib/revenuecat";
 import PaywallModal from "@/components/PaywallModal";
@@ -360,7 +369,7 @@ export default function PracticeScreen() {
   const sessionCountInPhase = activeChunk ? activeChunk.sessionCountInPhase : (entry?.sessionCountInPhase ?? 0);
   const consecutiveGoodSessions = activeChunk ? activeChunk.consecutiveGoodSessions : (entry?.consecutiveGoodSessions ?? 0);
   const contentType = entry?.contentType ?? "passage";
-  const mnemonicAlreadyShown = isMnemonicSuitable(contentType) && (entry?.daysLeft ?? 99) <= 3;
+  const mnemonicAlreadyShown = isMnemonicGenerationEnabled(contentType) && (entry?.daysLeft ?? 99) <= 3;
   const tightPassingPracticeSessions = useMemo(() => {
     // Sessions that pass the threshold AND happened in the practice loop
     // (phase >= 2). Phase 1 reading is the implicit Session 1 of the ladder
@@ -451,6 +460,8 @@ export default function PracticeScreen() {
   const flashTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [abTip, setAbTip] = useState<{ acronym: string; explanation: string } | null>(null);
   const [abTipStatus, setAbTipStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
+  const [abTipErrorMsg, setAbTipErrorMsg] = useState<string | null>(null);
+  const [abTipRetryTick, setAbTipRetryTick] = useState(0);
   const [mnemonic, setMnemonic] = useState<MnemonicResponse | null>(null);
 
   // Next-word quiz state
@@ -537,19 +548,31 @@ export default function PracticeScreen() {
     );
   }
 
+  const handleAcronymRetry = useCallback(() => {
+    setAbTipRetryTick((n) => n + 1);
+  }, []);
+
   // Fetch Gemini-generated acronym tip when in acronym-builder mode
   useEffect(() => {
     if (gate1Locked) return;
     if (activityType !== "acronym-builder" || !entry?.id || entry.id === "demo") return;
     setAbTip(null);
+    setAbTipErrorMsg(null);
     setAbTipStatus("loading");
     const textId = entry.id;
     const content = practiceContent;
     let cancelled = false;
     let attempts = 0;
     const maxAttempts = 15;
+    let pollTimer: ReturnType<typeof setTimeout> | null = null;
 
     let token: string | null = null;
+
+    const fail = (msg: string) => {
+      if (cancelled) return;
+      setAbTipStatus("error");
+      setAbTipErrorMsg(msg);
+    };
 
     function poll() {
       if (cancelled) return;
@@ -559,27 +582,35 @@ export default function PracticeScreen() {
           setAbTip({ acronym: res.acronym, explanation: res.explanation });
           setAbTipStatus("ready");
         } else if (res.status === "error") {
-          setAbTipStatus("error");
+          if (res.errorMessage) {
+            console.warn("[Verbitra] Acronym generation failed:", res.errorMessage);
+          }
+          fail(formatAcronymServerError());
         } else if (attempts < maxAttempts) {
           attempts++;
-          setTimeout(poll, 2500);
+          pollTimer = setTimeout(poll, 2500);
         } else {
-          setAbTipStatus("error");
+          fail(formatAcronymTimeoutError());
         }
       }).catch((err: unknown) => {
         if (cancelled) return;
         const msg = err instanceof Error ? err.message : String(err);
-        // Stop immediately on auth errors — retrying won't help
-        if (msg.includes("401") || msg.toLowerCase().includes("unauthorized")) {
-          setAbTipStatus("error");
+        const normalized = msg.toLowerCase();
+        if (
+          normalized.includes("401") ||
+          normalized.includes("unauthorized") ||
+          normalized.includes("403") ||
+          normalized.includes("forbidden")
+        ) {
+          fail(formatAcronymFetchError(err));
           return;
         }
         triggerAcronymGeneration(textId, content, token).catch(() => {});
         if (attempts < maxAttempts) {
           attempts++;
-          setTimeout(poll, 3000);
+          pollTimer = setTimeout(poll, 3000);
         } else {
-          setAbTipStatus("error");
+          fail(formatAcronymTimeoutError());
         }
       });
     }
@@ -587,11 +618,26 @@ export default function PracticeScreen() {
     getValidToken().then((t) => {
       if (cancelled) return;
       token = t;
-      if (!token) { setAbTipStatus("error"); return; }
-      poll();
-    }).catch(() => { setAbTipStatus("error"); });
-    return () => { cancelled = true; };
-  }, [activityType, entry?.id, practiceContent, gate1Locked]);
+      if (!token) {
+        fail(formatAcronymSessionError());
+        return;
+      }
+      if (abTipRetryTick > 0) {
+        triggerAcronymGeneration(textId, content, token).catch(() => {});
+        pollTimer = setTimeout(poll, 1000);
+      } else {
+        poll();
+      }
+    }).catch(() => {
+      if (cancelled) return;
+      fail(formatAcronymSessionError());
+    });
+
+    return () => {
+      cancelled = true;
+      if (pollTimer) clearTimeout(pollTimer);
+    };
+  }, [activityType, entry?.id, practiceContent, gate1Locked, abTipRetryTick, getValidToken]);
 
   // Fetch mnemonic scaffold (phases 2–3 only, mnemonic-suitable content types)
   useEffect(() => {
@@ -599,7 +645,7 @@ export default function PracticeScreen() {
     const tid = entry?.id;
     if (!tid || tid === "demo") return;
     if (actualPhase > 3) return;
-    if (!isMnemonicSuitable(contentType)) return;
+    if (!isMnemonicGenerationEnabled(contentType)) return;
     let cancelled = false;
     getValidToken()
       .then((token) => fetchMnemonic(tid, token))
@@ -1630,8 +1676,21 @@ export default function PracticeScreen() {
 
                 {abTipStatus === "error" && (
                   <View style={styles.abErrorCard}>
-                    <Text style={styles.abErrorTitle}>Couldn't generate acronym</Text>
-                    <Text style={styles.abErrorSub}>Tap "Got it!" to continue without it</Text>
+                    <Feather name="alert-circle" size={28} color={T.wrong} />
+                    <Text style={styles.abErrorTitle}>{ACRONYM_ERROR_TITLE}</Text>
+                    <Text style={styles.abErrorSub}>
+                      {abTipErrorMsg ?? formatAcronymGenericError()}
+                    </Text>
+                    <TouchableOpacity
+                      style={styles.abRetryBtn}
+                      onPress={handleAcronymRetry}
+                      activeOpacity={0.85}
+                      testID="practice-acronym-retry-btn"
+                    >
+                      <Feather name="refresh-cw" size={14} color={T.primary} />
+                      <Text style={styles.abRetryBtnText}>Tap to try again</Text>
+                    </TouchableOpacity>
+                    <Text style={styles.abErrorSkipHint}>{formatAcronymSkipHint()}</Text>
                   </View>
                 )}
               </>
@@ -2258,8 +2317,32 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 8,
   },
-  abErrorTitle: { fontSize: 16, color: T.wrong, fontWeight: "700" as const },
-  abErrorSub: { fontSize: 13, color: T.secondary },
+  abErrorTitle: { fontSize: 16, color: T.text, fontWeight: "700" as const, textAlign: "center" as const },
+  abErrorSub: { fontSize: 13, color: T.secondary, textAlign: "center" as const, lineHeight: 20 },
+  abRetryBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: T.primary + "15",
+    borderWidth: 1,
+    borderColor: T.primary + "44",
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    marginTop: 4,
+  },
+  abRetryBtnText: {
+    fontSize: 13,
+    fontWeight: "600" as const,
+    color: T.primary,
+  },
+  abErrorSkipHint: {
+    fontSize: 12,
+    color: T.tertiary,
+    textAlign: "center" as const,
+    lineHeight: 18,
+    marginTop: 4,
+  },
   proLockedCard: {
     backgroundColor: T.surface,
     borderWidth: 1.5,
