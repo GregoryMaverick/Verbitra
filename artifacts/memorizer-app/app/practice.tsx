@@ -41,6 +41,7 @@ import { useSubscription } from "@/lib/revenuecat";
 import PaywallModal from "@/components/PaywallModal";
 import { useHardAuthGate } from "@/hooks/useHardAuthGate";
 import { generateQuiz, type QuizQuestion } from "@/lib/highlightQuiz";
+import { isWordPart, normalizeWordForCompare, splitTextParts } from "@/lib/textTokens";
 
 const GATE1_SESSION_THRESHOLD = 7;
 
@@ -90,11 +91,11 @@ function levenshtein(a: string, b: string): number {
 }
 
 function tokenizeForPhase(content: string, phase: number): WordToken[] {
-  const parts = content.match(/[A-Za-z'']+|[^A-Za-z\s]+/g) ?? [];
+  const parts = splitTextParts(content);
   const tokens: WordToken[] = [];
   let idx = 0;
   for (const part of parts) {
-    if (!/[A-Za-z]/.test(part)) {
+    if (!isWordPart(part)) {
       tokens.push({ w: part, status: "punct", index: idx++ });
     } else {
       const lower = part.toLowerCase();
@@ -110,13 +111,9 @@ function tokenizeForPhase(content: string, phase: number): WordToken[] {
   return tokens;
 }
 
-function normalize(s: string) {
-  return s.toLowerCase().replace(/[^a-z0-9]/g, "");
-}
-
 function getSubmitResult(typed: string, target: string): SubmitResult {
-  const a = normalize(typed);
-  const b = normalize(target);
+  const a = normalizeWordForCompare(typed);
+  const b = normalizeWordForCompare(target);
   if (a === b) return "correct";
   const dist = levenshtein(a, b);
   return dist <= 2 ? "partial" : "wrong";
@@ -695,7 +692,7 @@ export default function PracticeScreen() {
         const lines = practiceContent.split("\n");
         let tokenIdx = 0;
         for (const line of lines) {
-          const parts: string[] = line.match(/[A-Za-z'']+|[^A-Za-z\s]+/g) ?? [];
+          const parts: string[] = splitTextParts(line);
           const colonIdx = line.indexOf(":");
           const nameBeforeColon = colonIdx >= 0
             ? line.slice(0, colonIdx).trim().replace(/\s+/g, " ").toUpperCase()
@@ -703,7 +700,7 @@ export default function PracticeScreen() {
           const isCharLine = charName.length > 0 && nameBeforeColon === charName;
           if (!isCharLine) {
             for (const p of parts) {
-              if (/[A-Za-z]/.test(p)) {
+              if (isWordPart(p)) {
                 const lower = p.toLowerCase();
                 if (actualPhase >= 3 || !FUNCTION_WORDS.has(lower)) {
                   autoCorrect[tokenIdx] = "correct";

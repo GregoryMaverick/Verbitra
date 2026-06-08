@@ -47,11 +47,17 @@ export function classifyContent(text: string): ContentType {
     }
   }
 
-  // Comma-separated list: 3+ short segments (≤5 words each) separated by commas
+  // Comma-separated list: 3+ short segments (≤5 words each) separated by commas.
+  // Skip when the text reads as flowing prose (e.g. Latin prayers with many invocations
+  // separated by commas but forming full sentences).
   const commaParts = trimmed.split(",").map((s) => s.trim()).filter((s) => s.length > 0);
   if (commaParts.length >= 3) {
+    const totalWords = trimmed.split(/\s+/).filter(Boolean).length;
     const shortParts = commaParts.filter((s) => s.split(/\s+/).length <= 5);
-    if (shortParts.length / commaParts.length >= 0.8) {
+    const looksLikeProse =
+      (lines.length <= 1 && totalWords >= 25) ||
+      (/[.!?]/.test(trimmed) && totalWords >= 20);
+    if (shortParts.length / commaParts.length >= 0.8 && !looksLikeProse) {
       return "ordered-list";
     }
   }
