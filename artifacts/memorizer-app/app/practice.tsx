@@ -245,11 +245,11 @@ function buildActivityInstructionDetail(
     case "progressive-deletion":
       return {
         lead: `Type each missing word in the box, then press ${kbd} to check it.`,
-        sub: "The first blank stays until you answer correctly. After that, another word hides every 7 seconds — keep moving with the passage.",
+        sub: "The first blank stays until you answer. Each new blank appears right away — then you have 7 seconds before the next one hides (or press Enter when you're ready sooner).",
         helpTitle: "Progressive Deletion",
         helpParas: [
           `Type each missing word in the box under the blank, then press ${kbd} (or your keyboard submit / enter key) to check it.`,
-          "Your first blank does not advance on the timer until you get it right. After that, the exercise hides another word every 7 seconds — read ahead so you are ready for the next gap.",
+          "Your first blank does not hide another word until you submit it. After that, the next blank appears immediately and a 7-second countdown starts for the one after — press Enter when you're done typing to skip the wait.",
         ],
       };
     case "guided-typing":
@@ -745,14 +745,48 @@ export default function PracticeScreen() {
   }, [activityType, practiceContent, entry?.id]);
 
   const pdContentKey = pdContentIndices.join(",");
-  // First-word timer suppression: the very first blanked word has no countdown
-  // pressure so the user can settle in. After they submit it, the 7s interval
-  // kicks in for subsequent words.
-  const pdFirstWordSubmittedRef = useRef(false);
+  const PD_REVEAL_INTERVAL_MS = 7000;
+  const pdClearRevealTimer = useCallback(() => {
+    if (pdTimerRef.current) clearInterval(pdTimerRef.current);
+    pdTimerRef.current = null;
+  }, []);
+
+  const pdRevealNextWord = useCallback(() => {
+    const nextIndex = pdQueueRef.current.shift();
+    if (nextIndex === undefined) {
+      pdClearRevealTimer();
+      setPdRevealDeadlineMs(null);
+      return;
+    }
+    setPdBlankedIndices((prev) => [...prev, nextIndex]);
+    Vibration.vibrate(20);
+    setTimeout(() => {
+      inputRefs.current[nextIndex]?.focus();
+      setActiveIndex(nextIndex);
+    }, 150);
+    if (pdQueueRef.current.length === 0) {
+      pdClearRevealTimer();
+      setPdRevealDeadlineMs(null);
+    } else {
+      setPdRevealDeadlineMs(Date.now() + PD_REVEAL_INTERVAL_MS);
+    }
+  }, [pdClearRevealTimer]);
+
+  // Reveal the next queued word now, then run the 7s interval for words after that.
+  // Always reveal before counting — never show a countdown with no new blank yet.
+  const pdAdvanceEarly = useCallback(() => {
+    if (activityType !== "progressive-deletion") return;
+    if (pdQueueRef.current.length === 0) return;
+    pdClearRevealTimer();
+    pdRevealNextWord();
+    if (pdQueueRef.current.length > 0) {
+      pdTimerRef.current = setInterval(pdRevealNextWord, PD_REVEAL_INTERVAL_MS);
+    }
+  }, [activityType, pdClearRevealTimer, pdRevealNextWord]);
+
   useEffect(() => {
     if (activityType !== "progressive-deletion") return;
     pdQueueRef.current = [...pdContentIndices];
-    pdFirstWordSubmittedRef.current = false;
     // Reveal the first blank immediately (no initial delay, no timer).
     const firstIndex = pdQueueRef.current.shift();
     if (firstIndex !== undefined) {
@@ -764,40 +798,10 @@ export default function PracticeScreen() {
       }, 200);
     }
     return () => {
-      if (pdTimerRef.current) clearInterval(pdTimerRef.current);
-      pdTimerRef.current = null;
+      pdClearRevealTimer();
       setPdRevealDeadlineMs(null);
     };
-  }, [activityType, pdContentKey]);
-
-  const pdStartIntervalIfNeeded = useCallback(() => {
-    if (activityType !== "progressive-deletion") return;
-    if (pdTimerRef.current) return;
-    if (pdQueueRef.current.length === 0) return;
-    setPdRevealDeadlineMs(Date.now() + 7000);
-    pdTimerRef.current = setInterval(() => {
-      const nextIndex = pdQueueRef.current.shift();
-      if (nextIndex === undefined) {
-        if (pdTimerRef.current) clearInterval(pdTimerRef.current);
-        pdTimerRef.current = null;
-        setPdRevealDeadlineMs(null);
-        return;
-      }
-      setPdBlankedIndices((prev) => [...prev, nextIndex]);
-      Vibration.vibrate(20);
-      setTimeout(() => {
-        inputRefs.current[nextIndex]?.focus();
-        setActiveIndex(nextIndex);
-      }, 150);
-      if (pdQueueRef.current.length === 0) {
-        if (pdTimerRef.current) clearInterval(pdTimerRef.current);
-        pdTimerRef.current = null;
-        setPdRevealDeadlineMs(null);
-      } else {
-        setPdRevealDeadlineMs(Date.now() + 7000);
-      }
-    }, 7000);
-  }, [activityType]);
+  }, [activityType, pdContentKey, pdClearRevealTimer]);
 
   useEffect(() => {
     if (activityType !== "progressive-deletion") return;
@@ -950,13 +954,12 @@ export default function PracticeScreen() {
       setTimeout(() => inputRefs.current[nextBlank]?.focus(), 80);
     }
 
-    // Progressive-deletion: the first blanked word has no countdown. Once the user
-    // submits it, kick off the 7-second interval for subsequent words.
-    if (activityType === "progressive-deletion" && !pdFirstWordSubmittedRef.current) {
-      pdFirstWordSubmittedRef.current = true;
-      pdStartIntervalIfNeeded();
+    // Progressive-deletion: reveal the next blank first, then count down to the one
+    // after. Applies after the first submit and whenever Enter beats the timer.
+    if (activityType === "progressive-deletion" && nextBlank == null && pdQueueRef.current.length > 0) {
+      pdAdvanceEarly();
     }
-  }, [allTokens, typedWords, submitted, blankIndices, activityType, pdStartIntervalIfNeeded]);
+  }, [allTokens, typedWords, submitted, blankIndices, activityType, pdAdvanceEarly]);
 
   const correctCount = typeableTokens.filter((t) => submitted[t.index] === "correct").length;
   const partialCount = typeableTokens.filter((t) => submitted[t.index] === "partial").length;
@@ -1493,7 +1496,7 @@ export default function PracticeScreen() {
   const pdCountdownProgress =
     pdRevealDeadlineMs == null
       ? null
-      : Math.min(1, Math.max(0, (7000 - Math.max(0, pdRevealDeadlineMs - Date.now())) / 7000));
+      : Math.min(1, Math.max(0, (PD_REVEAL_INTERVAL_MS - Math.max(0, pdRevealDeadlineMs - Date.now())) / PD_REVEAL_INTERVAL_MS));
 
   const pdCountdownSecsRemaining =
     pdRevealDeadlineMs == null ? null : Math.max(0, Math.ceil((pdRevealDeadlineMs - Date.now()) / 1000));

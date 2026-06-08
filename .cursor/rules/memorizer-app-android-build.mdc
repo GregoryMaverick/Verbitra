@@ -1,0 +1,51 @@
+---
+description: Build and install memorizer-app debug APK on Android emulator (Verbitra)
+globs: artifacts/memorizer-app/**
+alwaysApply: false
+---
+
+# memorizer-app — Android debug build & emulator install
+
+## Use this workflow (what works)
+
+From `artifacts/memorizer-app`, with emulator running (`adb devices` shows `device`):
+
+```bash
+export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
+export ANDROID_HOME="$HOME/Library/Android/sdk"
+export PATH="$JAVA_HOME/bin:$ANDROID_HOME/platform-tools:$PATH"
+
+cd artifacts/memorizer-app
+pnpm dlx node@24 ./node_modules/expo/bin/cli run:android
+```
+
+- Builds native code + installs APK on the connected emulator.
+- Starts Metro on port 8081 (debug is a **dev client** — JS loads from Metro, not only the APK).
+- Do **not** pass `--no-bundler` unless Metro is already running.
+
+After install, if the app can't reach Metro:
+
+```bash
+adb reverse tcp:8081 tcp:8081
+adb shell am start -n com.verbitra.app/.MainActivity
+```
+
+APK output: `artifacts/memorizer-app/android/app/build/outputs/apk/debug/app-debug.apk`
+
+## Avoid these mistakes
+
+| Don't | Why |
+|-------|-----|
+| `cd android && ./gradlew assembleDebug` alone | Often **UP-TO-DATE** (stale APK); debug skips JS embed by default |
+| `./gradlew clean assembleDebug` | **Fails** on this repo — `clean` removes React Native codegen JNI dirs CMake needs |
+| Start a second Metro on 8081 | Port already in use; `expo run:android` starts Metro |
+| `expo run:android --device emulator-5554` | Expo expects AVD **name**, not `adb` serial — omit `--device` if one emulator is connected |
+
+## Standalone APK (no Metro)
+
+User must ask explicitly. Use release signing (`keystore.properties` exists) or EAS — not the default debug dev-client flow.
+
+## Prerequisites
+
+- Android Studio JBR for `JAVA_HOME` (system Java may be missing).
+- Emulator running before `run:android`.

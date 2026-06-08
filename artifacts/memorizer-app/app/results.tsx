@@ -44,6 +44,28 @@ function getNextPhaseLabel(phase: number): string {
   return "Mastered";
 }
 
+function ResultsFeedbackButton() {
+  return (
+    <TouchableOpacity
+      style={styles.feedbackBtn}
+      onPress={() => router.push("/feedback")}
+      activeOpacity={0.85}
+      accessibilityRole="button"
+      accessibilityLabel="Send feedback about this session"
+      testID="results-feedback-btn"
+    >
+      <View style={styles.feedbackIconBox}>
+        <Feather name="message-circle" size={14} color={T.primary} />
+      </View>
+      <View style={styles.feedbackTextCol}>
+        <Text style={styles.feedbackTitle}>How was this session?</Text>
+        <Text style={styles.feedbackSubtitle}>Tell us what to improve</Text>
+      </View>
+      <Feather name="chevron-right" size={18} color={T.tertiary} />
+    </TouchableOpacity>
+  );
+}
+
 export default function ResultsScreen() {
   const insets = useSafeAreaInsets();
   const statusBarTop = Platform.OS === "android" ? (StatusBar.currentHeight ?? 0) : 0;
@@ -231,12 +253,15 @@ export default function ResultsScreen() {
             Rapid recall keeps your memory sharp. Well done — see you in 7 days.
           </Text>
           <TouchableOpacity
-            style={[styles.homeBtn, { marginTop: 32 }]}
+            style={[styles.homeBtn, { marginTop: 32, alignSelf: "stretch" }]}
             onPress={handleBackHome}
             activeOpacity={0.85}
           >
             <Text style={styles.homeBtnText}>Done</Text>
           </TouchableOpacity>
+          <View style={{ width: "100%", marginTop: 14 }}>
+            <ResultsFeedbackButton />
+          </View>
         </View>
       </View>
     );
@@ -562,6 +587,8 @@ export default function ResultsScreen() {
           </>
         )}
 
+        <ResultsFeedbackButton />
+
         {MISSED_WORDS.length > 0 && (
           <TouchableOpacity
             style={styles.reviewBtn}
@@ -805,6 +832,28 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   homeBtnText: { color: "#fff", fontSize: 16, fontWeight: "700" as const },
+  feedbackBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: T.surface,
+    borderWidth: 1,
+    borderColor: T.border,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+  },
+  feedbackIconBox: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: T.primary + "1A",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  feedbackTextCol: { flex: 1, minWidth: 0 },
+  feedbackTitle: { fontSize: 14, fontWeight: "600" as const, color: T.text },
+  feedbackSubtitle: { fontSize: 12, color: T.secondary, marginTop: 2 },
   reviewBtn: { alignItems: "center", paddingVertical: 4 },
   reviewBtnText: { fontSize: 13, color: T.secondary, textDecorationLine: "underline" },
   ratingCard: {
